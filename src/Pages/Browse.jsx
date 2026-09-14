@@ -202,6 +202,13 @@ function Browse() {
     }
 
     console.log("Swap request created:", data);
+
+    alert("Swap request sent successfully!");
+
+    setSwapUser(null);
+    setSelectedOfferedSkill("");
+    setSelectedRequestedSkill("");
+    setSwapMessage("");
   };
 
   return (

@@ -114,6 +114,13 @@ function Dashboard() {
     }
 
     console.log("Swap completion updated:", data);
+
+    setCurrentSwaps((currentSwaps) =>
+      currentSwaps.map((currentSwap) =>
+        currentSwap.id === swap.id ? data : currentSwap,
+      ),
+    );
+
     setCompletingSwapId(null);
   };
 
