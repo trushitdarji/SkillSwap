@@ -4,8 +4,11 @@ import { supabase } from "../lib/supabase";
 function SwapRequests() {
   const [incomingRequests, setIncomingRequests] = useState([]);
   const [outgoingRequests, setOutgoingRequests] = useState([]);
-  const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [ratingRequest, setRatingRequest] = useState(null);
+  const [selectedRating, setSelectedRating] = useState(0);
+  const [ratedRequests, setRatedRequests] = useState([]);
   const [profileNames, setProfileNames] = useState({});
   const [skillNames, setSkillNames] = useState({});
 
@@ -141,6 +144,46 @@ function SwapRequests() {
     );
   };
 
+  const handleSubmitRating = async (rating, feedback) => {
+    const { data: sessionData, error: sessionError } =
+      await supabase.auth.getSession();
+
+    if (sessionError || !sessionData.session?.user?.id) {
+      setError("User session not found.");
+      return;
+    }
+
+    const currentUserId = sessionData.session.user.id;
+    const request = ratingRequest;
+
+    if (!request) {
+      setError("Rating request not found.");
+      return;
+    }
+
+    const revieweeId =
+      request.sender_id === currentUserId
+        ? request.receiver_id
+        : request.sender_id;
+
+    const { error } = await supabase.from("ratings").insert({
+      swap_request_id: request.id,
+      reviewer_id: currentUserId,
+      reviewee_id: revieweeId,
+      rating: Number(rating),
+      feedback: feedback.trim() || null,
+    });
+
+    if (error) {
+      setError(error.message);
+      return;
+    }
+
+    setRatedRequests((prev) => [...prev, request.id]);
+    setRatingRequest(null);
+    setSelectedRating(0);
+  };
+
   useEffect(() => {
     const fetchRequests = async () => {
       setLoading(true);
@@ -157,6 +200,21 @@ function SwapRequests() {
 
       const currentUserId = sessionData.session.user.id;
 
+      const { data: existingRatings, error: ratingsError } = await supabase
+        .from("ratings")
+        .select("swap_request_id")
+        .eq("reviewer_id", currentUserId);
+
+      if (ratingsError) {
+        setError(ratingsError.message);
+        setLoading(false);
+        return;
+      }
+
+      setRatedRequests(
+        (existingRatings || []).map((rating) => rating.swap_request_id),
+      );
+
       const { data: incoming, error: incomingError } = await supabase
         .from("swap_requests")
         .select("*")
@@ -169,7 +227,6 @@ function SwapRequests() {
       }
 
       setIncomingRequests(incoming || []);
-
       const names = {};
 
       for (const request of incoming || []) {
@@ -276,6 +333,13 @@ function SwapRequests() {
                 </button>
               )}
 
+            {request.status === "completed" &&
+              !ratedRequests.includes(request.id) && (
+                <button type="button" onClick={() => setRatingRequest(request)}>
+                  Rate User
+                </button>
+              )}
+
             {request.message && <p>Message: {request.message}</p>}
           </div>
         ))
@@ -309,9 +373,64 @@ function SwapRequests() {
               </button>
             )}
 
+            {request.status === "completed" &&
+              !ratedRequests.includes(request.id) && (
+                <button type="button" onClick={() => setRatingRequest(request)}>
+                  Rate User
+                </button>
+              )}
+
             {request.message && <p>Message: {request.message}</p>}
           </div>
         ))
+      )}
+      {ratingRequest && (
+        <div>
+          <h2>Rate User</h2>
+
+          <p>
+            Rate:{" "}
+            {profileNames[
+              ratingRequest.sender_id === ratingRequest.receiver_id
+                ? ratingRequest.sender_id
+                : ratingRequest.sender_id
+            ] || "User"}
+          </p>
+
+          <div>
+            {[1, 2, 3, 4, 5].map((star) => (
+              <button
+                key={star}
+                type="button"
+                onClick={() => setSelectedRating(star)}
+              >
+                {star <= selectedRating ? "★" : "☆"}
+              </button>
+            ))}
+          </div>
+
+          <textarea id="feedback" placeholder="Write your feedback..." />
+
+          <button
+            type="button"
+            onClick={() => {
+              const feedback = document.getElementById("feedback").value;
+
+              if (!selectedRating) {
+                setError("Please select a rating.");
+                return;
+              }
+
+              handleSubmitRating(selectedRating, feedback);
+            }}
+          >
+            Submit Rating
+          </button>
+
+          <button type="button" onClick={() => setRatingRequest(null)}>
+            Cancel
+          </button>
+        </div>
       )}
     </div>
   );
