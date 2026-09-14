@@ -28,7 +28,7 @@ function Dashboard() {
       console.log("Current session:", data.session);
 
       if (!data.session) {
-        window.location.href = "/login";
+        navigate("/login");
         return;
       }
     };

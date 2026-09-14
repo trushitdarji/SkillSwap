@@ -5,11 +5,22 @@ import { useNavigate } from "react-router-dom";
 function Login() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [errorMessage, setErrorMessage] = useState("");
+  const [loading, setLoading] = useState(false);
 
   const navigate = useNavigate();
 
   const handleLogin = async (e) => {
     e.preventDefault();
+
+    setErrorMessage("");
+
+    setLoading(true);
+
+    if (!email.trim() || !password.trim()) {
+      setErrorMessage("Email and password are required");
+      return;
+    }
 
     const { data, error } = await supabase.auth.signInWithPassword({
       email,
@@ -17,10 +28,11 @@ function Login() {
     });
 
     if (error) {
-      console.error("Login error:", error);
+      setLoading(false);
+      setErrorMessage("Invalid email or password");
       return;
     }
-
+    setLoading(false);
     console.log("Login successful:", data.user);
     navigate("/dashboard");
   };
@@ -29,6 +41,8 @@ function Login() {
     <div>
       <h1>Login</h1>
       <p>SkillSwap Login</p>
+
+      {errorMessage && <p>{errorMessage}</p>}
 
       <form onSubmit={handleLogin}>
         <div>
@@ -52,8 +66,10 @@ function Login() {
             onChange={(e) => setPassword(e.target.value)}
           />
         </div>
-
-        <button type="submit">Login</button>
+        
+        <button type="submit" disabled={loading}>
+          {loading ? "Logging in..." : "Login"}
+        </button>
       </form>
     </div>
   );

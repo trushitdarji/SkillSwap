@@ -6,11 +6,34 @@ function Signup() {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [errorMessage, setErrorMessage] = useState("");
+  const [loading, setLoading] = useState(false);
 
   const navigate = useNavigate();
 
   const handleSignup = async (e) => {
     e.preventDefault();
+    setErrorMessage("");
+    setLoading(true);
+
+    if (!name.trim() || !email.trim() || !password.trim()) {
+      setLoading(false);
+      setErrorMessage("All fields are required");
+      return;
+    }
+    if (password.length < 6) {
+      setLoading(false);
+      setErrorMessage("Password must be at least 6 characters");
+      return;
+    }
+
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+    if (!emailRegex.test(email)) {
+      setLoading(false);
+      setErrorMessage("Please enter a valid email address");
+      return;
+    }
 
     const { data, error } = await supabase.auth.signUp({
       email,
@@ -18,29 +41,36 @@ function Signup() {
     });
 
     if (error) {
-      console.error("Signup error:", error);
+      setLoading(false);
+      setErrorMessage(error.message);
       return;
     }
 
     const user = data.user;
 
     if (!user) {
-      console.error("User was not created");
+      setLoading(false);
+      setErrorMessage("User was not created");
       return;
     }
 
     const { error: profileError } = await supabase.from("profiles").insert({
       id: user.id,
       full_name: name,
-      username: name.toLowerCase().replace(/\s+/g, "_"),
+      username: `${name
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, "_")
+        .replace(/^_+|_+$/g, "")}_${Date.now().toString().slice(-6)}`,
       role: "user",
     });
 
     if (profileError) {
-      console.error("Profile creation error:", profileError);
+      setLoading(false);
+      setErrorMessage("Profile creation failed");
       return;
     }
 
+    setLoading(false);
     console.log("Signup and profile creation successful");
     navigate("/login");
   };
@@ -48,6 +78,8 @@ function Signup() {
     <div>
       <h1>Create Account</h1>
       <p>SkillSwap Signup</p>
+
+      {errorMessage && <p>{errorMessage}</p>}
 
       <form onSubmit={handleSignup}>
         <div>
@@ -83,7 +115,9 @@ function Signup() {
           />
         </div>
 
-        <button type="submit">Create Account</button>
+        <button type="submit" disabled={loading}>
+          {loading ? "Creating Account..." : "Create Account"}
+        </button>
       </form>
     </div>
   );
