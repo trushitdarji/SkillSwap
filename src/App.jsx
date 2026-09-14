@@ -4,6 +4,7 @@ import Signup from "./Pages/Signup";
 import Dashboard from "./Pages/Dashboard";
 import Profile from "./Pages/Profile";
 import Browse from "./Pages/Browse";
+import SwapRequests from "./Pages/SwapRequests";
 
 function App() {
   return (
@@ -15,6 +16,7 @@ function App() {
         <Route path="/profile" element={<Profile />} />
         <Route path="/profile/:userId" element={<Profile />} />
         <Route path="/browse" element={<Browse />} />
+        <Route path="/swap-requests" element={<SwapRequests />} />
       </Routes>
     </BrowserRouter>
   );

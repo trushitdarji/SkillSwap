@@ -211,23 +211,29 @@ function Profile() {
       }
 
       console.log("Current user ID:", data.session.user.id);
-
-      const { data: profile, error: profileError } = await supabase
+      const { data: profileData, error: profileError } = await supabase
         .from("profiles")
         .select("*")
         .eq("id", userId || data.session.user.id)
-        .single();
+        .maybeSingle();
 
       if (profileError) {
         console.error("Profile fetch error:", profileError);
         return;
       }
 
-      setProfile(profile);
-      setLocation(profile.location || "");
-      setBio(profile.bio || "");
-      setIsPublic(profile.is_public);
-      setAvailability(profile.availability || []);
+      if (!profileData) {
+        setProfile(null);
+        setSkills([]);
+        setSkillsLoading(false);
+        return;
+      }
+
+      setProfile(profileData);
+      setLocation(profileData.location || "");
+      setBio(profileData.bio || "");
+      setIsPublic(profileData.is_public);
+      setAvailability(profileData.availability || []);
 
       const { data: userSkills, error: skillsError } = await supabase
         .from("user_skills")
@@ -269,188 +275,207 @@ function Profile() {
   }, [navigate]);
   return (
     <div>
-      <h1>Profile</h1>
-      <p>Welcome, {profile?.full_name}</p>
-      <p>Username: {profile?.username}</p>
-      <p>Role: {profile?.role}</p>
-      <p>Location: {profile?.location || "Not added"}</p>
-      <p>Bio: {profile?.bio || "No bio added"}</p>
-      <p>Profile visibility: {profile?.is_public ? "Public" : "Private"}</p>
-
-      <p>
-        Availability:{" "}
-        {profile?.availability?.length > 0
-          ? profile.availability
-              .map(
-                (value) =>
-                  availabilityOptions.find((option) => option.value === value)
-                    ?.label || value,
-              )
-              .join(", ")
-          : "Not provided"}
-      </p>
-
-      <h2>My Skills</h2>
-
-      {isOwnProfile && (
+      {!profile && !isOwnProfile ? (
         <>
-          <button type="button" onClick={handleAddSkill} disabled={skillSaving}>
-            {skillSaving ? "Adding..." : "Add Skill"}
+          <h1>Profile</h1>
+          <p>This profile is private or does not exist.</p>
+          <button type="button" onClick={() => navigate("/dashboard")}>
+            Back to Dashboard
           </button>
-
-          {skillMessage && <p>{skillMessage}</p>}
-
-          <select
-            value={selectedSkill}
-            onChange={(e) => {
-              setSelectedSkill(e.target.value);
-              setSkillMessage("");
-            }}
-          >
-            <option value="">Select a skill</option>
-
-            {availableSkills.map((skill) => (
-              <option key={skill.id} value={skill.id}>
-                {skill.name}
-              </option>
-            ))}
-          </select>
-
-          <select
-            value={selectedSkillType}
-            onChange={(e) => setSelectedSkillType(e.target.value)}
-          >
-            <option value="offer">I can teach</option>
-            <option value="want">I want to learn</option>
-          </select>
         </>
-      )}
-
-      {skillsLoading ? (
-        <p>Loading skills...</p>
-      ) : skills.length === 0 ? (
-        <p>No skills added yet.</p>
       ) : (
-        <div>
-          <h3>Skills I Offer</h3>
-
-          {skills.filter((item) => item.skill_type === "offer").length === 0 ? (
-            <p>No offered skills.</p>
-          ) : (
-            skills
-              .filter((item) => item.skill_type === "offer")
-              .map((item) => (
-                <div key={`${item.skills.id}-offer`}>
-                  <span>{item.skills.name}</span>
-
-                  {isOwnProfile && (
-                    <button
-                      type="button"
-                      onClick={() =>
-                        handleRemoveSkill(item.skills.id, item.skill_type)
-                      }
-                      disabled={skillRemoving}
-                    >
-                      {skillRemoving ? "Removing..." : "Remove"}
-                    </button>
-                  )}
-                </div>
-              ))
-          )}
-
-          <h3>Skills I Want</h3>
-
-          {skills.filter((item) => item.skill_type === "want").length === 0 ? (
-            <p>No wanted skills.</p>
-          ) : (
-            skills
-              .filter((item) => item.skill_type === "want")
-              .map((item) => (
-                <div key={`${item.skills.id}-want`}>
-                  <span>{item.skills.name}</span>
-
-                  {isOwnProfile && (
-                    <button
-                      type="button"
-                      onClick={() =>
-                        handleRemoveSkill(item.skills.id, item.skill_type)
-                      }
-                      disabled={skillRemoving}
-                    >
-                      {skillRemoving ? "Removing..." : "Remove"}
-                    </button>
-                  )}
-                </div>
-              ))
-          )}
-        </div>
-      )}
-      {isOwnProfile && (
         <>
-          <hr />
+          <h1>Profile</h1>
+          <p>Welcome, {profile?.full_name}</p>
+          <p>Username: {profile?.username}</p>
+          <p>Role: {profile?.role}</p>
+          <p>Location: {profile?.location || "Not added"}</p>
+          <p>Bio: {profile?.bio || "No bio added"}</p>
+          <p>Profile visibility: {profile?.is_public ? "Public" : "Private"}</p>
+          <p>
+            Availability:{" "}
+            {profile?.availability?.length > 0
+              ? profile.availability
+                  .map(
+                    (value) =>
+                      availabilityOptions.find(
+                        (option) => option.value === value,
+                      )?.label || value,
+                  )
+                  .join(", ")
+              : "Not provided"}
+          </p>
+          <h2>My Skills</h2>
+          {isOwnProfile && (
+            <>
+              <button
+                type="button"
+                onClick={handleAddSkill}
+                disabled={skillSaving}
+              >
+                {skillSaving ? "Adding..." : "Add Skill"}
+              </button>
 
-          <h2>Edit Profile</h2>
+              {skillMessage && <p>{skillMessage}</p>}
 
-          <div>
-            <label htmlFor="location">Location</label>
-            <input
-              id="location"
-              type="text"
-              placeholder="Enter your location"
-              value={location}
-              onChange={(e) => setLocation(e.target.value)}
-            />
-          </div>
+              <select
+                value={selectedSkill}
+                onChange={(e) => {
+                  setSelectedSkill(e.target.value);
+                  setSkillMessage("");
+                }}
+              >
+                <option value="">Select a skill</option>
 
-          <div>
-            <label htmlFor="bio">Bio</label>
-            <textarea
-              id="bio"
-              placeholder="Tell something about yourself"
-              value={bio}
-              onChange={(e) => setBio(e.target.value)}
-            />
-          </div>
+                {availableSkills.map((skill) => (
+                  <option key={skill.id} value={skill.id}>
+                    {skill.name}
+                  </option>
+                ))}
+              </select>
 
-          <div>
-            <h3>Availability</h3>
+              <select
+                value={selectedSkillType}
+                onChange={(e) => setSelectedSkillType(e.target.value)}
+              >
+                <option value="offer">I can teach</option>
+                <option value="want">I want to learn</option>
+              </select>
+            </>
+          )}
+          {skillsLoading ? (
+            <p>Loading skills...</p>
+          ) : skills.length === 0 ? (
+            <p>No skills added yet.</p>
+          ) : (
+            <div>
+              <h3>Skills I Offer</h3>
 
-            {availabilityOptions.map((option) => (
-              <label key={option.value}>
+              {skills.filter((item) => item.skill_type === "offer").length ===
+              0 ? (
+                <p>No offered skills.</p>
+              ) : (
+                skills
+                  .filter((item) => item.skill_type === "offer")
+                  .map((item) => (
+                    <div key={`${item.skills.id}-offer`}>
+                      <span>{item.skills.name}</span>
+
+                      {isOwnProfile && (
+                        <button
+                          type="button"
+                          onClick={() =>
+                            handleRemoveSkill(item.skills.id, item.skill_type)
+                          }
+                          disabled={skillRemoving}
+                        >
+                          {skillRemoving ? "Removing..." : "Remove"}
+                        </button>
+                      )}
+                    </div>
+                  ))
+              )}
+
+              <h3>Skills I Want</h3>
+
+              {skills.filter((item) => item.skill_type === "want").length ===
+              0 ? (
+                <p>No wanted skills.</p>
+              ) : (
+                skills
+                  .filter((item) => item.skill_type === "want")
+                  .map((item) => (
+                    <div key={`${item.skills.id}-want`}>
+                      <span>{item.skills.name}</span>
+
+                      {isOwnProfile && (
+                        <button
+                          type="button"
+                          onClick={() =>
+                            handleRemoveSkill(item.skills.id, item.skill_type)
+                          }
+                          disabled={skillRemoving}
+                        >
+                          {skillRemoving ? "Removing..." : "Remove"}
+                        </button>
+                      )}
+                    </div>
+                  ))
+              )}
+            </div>
+          )}
+          {isOwnProfile && (
+            <>
+              <hr />
+
+              <h2>Edit Profile</h2>
+
+              <div>
+                <label htmlFor="location">Location</label>
                 <input
-                  type="checkbox"
-                  value={option.value}
-                  checked={availability.includes(option.value)}
-                  onChange={(e) => {
-                    if (e.target.checked) {
-                      setAvailability((prev) => [...prev, option.value]);
-                    } else {
-                      setAvailability((prev) =>
-                        prev.filter((item) => item !== option.value),
-                      );
-                    }
-                  }}
+                  id="location"
+                  type="text"
+                  placeholder="Enter your location"
+                  value={location}
+                  onChange={(e) => setLocation(e.target.value)}
                 />
-                {option.label}
-              </label>
-            ))}
-          </div>
+              </div>
 
-          <div>
-            <label htmlFor="isPublic">
-              <input
-                id="isPublic"
-                type="checkbox"
-                checked={isPublic}
-                onChange={(e) => setIsPublic(e.target.checked)}
-              />
-              Make my profile public
-            </label>
-          </div>
+              <div>
+                <label htmlFor="bio">Bio</label>
+                <textarea
+                  id="bio"
+                  placeholder="Tell something about yourself"
+                  value={bio}
+                  onChange={(e) => setBio(e.target.value)}
+                />
+              </div>
 
-          <button type="button" onClick={handleSaveProfile} disabled={saving}>
-            {saving ? "Saving..." : "Save Profile"}
-          </button>
+              <div>
+                <h3>Availability</h3>
+
+                {availabilityOptions.map((option) => (
+                  <label key={option.value}>
+                    <input
+                      type="checkbox"
+                      value={option.value}
+                      checked={availability.includes(option.value)}
+                      onChange={(e) => {
+                        if (e.target.checked) {
+                          setAvailability((prev) => [...prev, option.value]);
+                        } else {
+                          setAvailability((prev) =>
+                            prev.filter((item) => item !== option.value),
+                          );
+                        }
+                      }}
+                    />
+                    {option.label}
+                  </label>
+                ))}
+              </div>
+
+              <div>
+                <label htmlFor="isPublic">
+                  <input
+                    id="isPublic"
+                    type="checkbox"
+                    checked={isPublic}
+                    onChange={(e) => setIsPublic(e.target.checked)}
+                  />
+                  Make my profile public
+                </label>
+              </div>
+
+              <button
+                type="button"
+                onClick={handleSaveProfile}
+                disabled={saving}
+              >
+                {saving ? "Saving..." : "Save Profile"}
+              </button>
+            </>
+          )}{" "}
         </>
       )}
     </div>

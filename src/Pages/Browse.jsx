@@ -96,8 +96,9 @@ function Browse() {
 
       const { data: profilesData, error: profilesError } = await supabase
         .from("profiles")
-        .select("id, full_name, username, location, availability")
-        .in("id", recommendedUserIds);
+        .select("id, full_name, username, location, availability, is_public")
+        .in("id", recommendedUserIds)
+        .eq("is_public", true);
 
       if (profilesError) {
         console.error("Profiles fetch error:", profilesError);
@@ -243,7 +244,6 @@ function Browse() {
             setSearchLoading(true);
 
             const { data: sessionData } = await supabase.auth.getSession();
-
             const currentUserId = sessionData.session?.user?.id;
 
             const selectedSkillName = availableSkills.find(
@@ -261,31 +261,75 @@ function Browse() {
 
             setSubmittedSearch(skillName);
 
-            const { data, error } = await supabase
+            const { data: skillResults, error: skillError } = await supabase
               .from("user_skills")
               .select("user_id, skill_id, skill_type")
               .eq("skill_type", "offer");
 
-            if (error) {
-              console.error("User search error:", error);
+            if (skillError) {
+              console.error("User search error:", skillError);
               setSearchLoading(false);
               return;
             }
 
-            const enrichedResults = (data || [])
+            const matchedSkillResults = (skillResults || [])
               .filter((result) => result.user_id !== currentUserId)
-              .map((result) => ({
-                ...result,
-                skills:
-                  availableSkills.find(
-                    (skill) => skill.id === result.skill_id,
-                  ) || null,
-              }))
-              .filter((result) =>
-                result.skills?.name
+              .filter((result) => {
+                const skill = availableSkills.find(
+                  (item) => item.id === result.skill_id,
+                );
+
+                return skill?.name
                   ?.toLowerCase()
-                  .includes(skillName.toLowerCase()),
-              );
+                  .includes(skillName.toLowerCase());
+              });
+
+            const userIds = [
+              ...new Set(matchedSkillResults.map((result) => result.user_id)),
+            ];
+
+            if (userIds.length === 0) {
+              setSearchResults([]);
+              setSearchLoading(false);
+              return;
+            }
+
+            const { data: profilesData, error: profilesError } = await supabase
+              .from("profiles")
+              .select(
+                "id, full_name, username, location, availability, is_public",
+              )
+              .in("id", userIds)
+              .eq("is_public", true);
+
+            if (profilesError) {
+              console.error("Search profiles error:", profilesError);
+              setSearchResults([]);
+              setSearchLoading(false);
+              return;
+            }
+
+            const enrichedResults = matchedSkillResults
+              .map((result) => {
+                const skill = availableSkills.find(
+                  (item) => item.id === result.skill_id,
+                );
+
+                const profile = (profilesData || []).find(
+                  (item) => item.id === result.user_id,
+                );
+
+                if (!profile) {
+                  return null;
+                }
+
+                return {
+                  ...result,
+                  skills: skill || null,
+                  profile,
+                };
+              })
+              .filter(Boolean);
 
             setSearchResults(enrichedResults);
             setSearchLoading(false);
@@ -446,8 +490,42 @@ function Browse() {
           <div>
             {searchResults.map((result) => (
               <div key={`${result.user_id}-${result.skills?.id || "unknown"}`}>
-                <h3>User ID: {result.user_id}</h3>
+                <h3>
+                  {result.profile?.full_name ||
+                    result.profile?.username ||
+                    "Unknown User"}
+                </h3>
+
+                <p>Username: @{result.profile?.username || "N/A"}</p>
+
+                <p>Location: {result.profile?.location || "Not provided"}</p>
+
+                <p>
+                  Availability:{" "}
+                  {result.profile?.availability?.length > 0
+                    ? result.profile.availability
+                        .map((value) => {
+                          const labels = {
+                            weekends: "Weekends",
+                            weekday_nights: "Monday–Saturday, 8 PM–10 PM",
+                            evenings: "Monday–Friday, 6 PM–8 PM",
+                            weekday_mornings: "Monday–Friday, 7 AM–9 AM",
+                          };
+
+                          return labels[value] || value;
+                        })
+                        .join(", ")
+                    : "Not provided"}
+                </p>
+
                 <p>Offers: {result.skills?.name || "Unknown skill"}</p>
+
+                <button
+                  type="button"
+                  onClick={() => navigate(`/profile/${result.user_id}`)}
+                >
+                  View Profile
+                </button>
               </div>
             ))}
           </div>
