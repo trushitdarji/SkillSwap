@@ -400,9 +400,9 @@ function Browse() {
                     >
                       <option value="">Select a skill</option>
 
-                      {swapUser.wantSkillIds.map((skillId, index) => (
+                      {swapUser.offerSkillIds.map((skillId, index) => (
                         <option key={skillId} value={skillId}>
-                          {swapUser.wants[index]}
+                          {swapUser.offers[index]}
                         </option>
                       ))}
                     </select>

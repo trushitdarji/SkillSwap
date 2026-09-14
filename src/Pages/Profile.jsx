@@ -240,7 +240,7 @@ function Profile() {
     )
   `,
         )
-        .eq("user_id", data.session.user.id);
+        .eq("user_id", userId || data.session.user.id);
 
       if (skillsError) {
         console.error("Skills fetch error:", skillsError);
