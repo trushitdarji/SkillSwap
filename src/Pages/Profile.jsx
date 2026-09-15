@@ -29,6 +29,7 @@ function Profile() {
 
   const [profile, setProfile] = useState(null);
   const [profilePhoto, setProfilePhoto] = useState(null);
+  const [photoUploading, setPhotoUploading] = useState(false);
   const [location, setLocation] = useState("");
   const [bio, setBio] = useState("");
   const [isPublic, setIsPublic] = useState(true);
@@ -57,16 +58,19 @@ function Profile() {
     if (!profilePhoto) {
       return;
     }
+    setPhotoUploading(true);
 
     const { data: sessionData, error: sessionError } =
       await supabase.auth.getSession();
 
     if (sessionError) {
+      setPhotoUploading(false);
       console.error("Session error:", sessionError);
       return;
     }
 
     if (!sessionData.session) {
+      setPhotoUploading(false);
       navigate("/login");
       return;
     }
@@ -95,6 +99,7 @@ function Profile() {
       });
 
     if (uploadError) {
+      setPhotoUploading(false);
       console.error("Photo upload error:", uploadError);
       return;
     }
@@ -113,6 +118,7 @@ function Profile() {
       .eq("id", userId);
 
     if (avatarUpdateError) {
+      setPhotoUploading(false);
       console.error("Avatar URL update error:", avatarUpdateError);
       return;
     }
@@ -131,6 +137,8 @@ function Profile() {
       ...prev,
       avatar_url: publicUrlData.publicUrl,
     }));
+
+    setPhotoUploading(false);
 
     console.log("Profile photo uploaded successfully");
   };
@@ -393,8 +401,12 @@ function Profile() {
                 onChange={handlePhotoSelect}
               />
 
-              <button type="button" onClick={handleUploadPhoto}>
-                Upload Photo
+              <button
+                type="button"
+                onClick={handleUploadPhoto}
+                disabled={photoUploading}
+              >
+                {photoUploading ? "Uploading..." : "Upload Photo"}
               </button>
             </div>
           )}
