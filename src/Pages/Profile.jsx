@@ -28,6 +28,7 @@ function Profile() {
   ];
 
   const [profile, setProfile] = useState(null);
+  const [profilePhoto, setProfilePhoto] = useState(null);
   const [location, setLocation] = useState("");
   const [bio, setBio] = useState("");
   const [isPublic, setIsPublic] = useState(true);
@@ -41,6 +42,98 @@ function Profile() {
   const [skillMessage, setSkillMessage] = useState("");
   const [skillSaving, setSkillSaving] = useState(false);
   const [skillRemoving, setSkillRemoving] = useState(false);
+
+  const handlePhotoSelect = (event) => {
+    const file = event.target.files[0];
+
+    if (!file) {
+      return;
+    }
+
+    setProfilePhoto(file);
+  };
+
+  const handleUploadPhoto = async () => {
+    if (!profilePhoto) {
+      return;
+    }
+
+    const { data: sessionData, error: sessionError } =
+      await supabase.auth.getSession();
+
+    if (sessionError) {
+      console.error("Session error:", sessionError);
+      return;
+    }
+
+    if (!sessionData.session) {
+      navigate("/login");
+      return;
+    }
+
+    const userId = sessionData.session.user.id;
+    const oldAvatarUrl = profile?.avatar_url;
+
+    let oldAvatarPath = null;
+
+    if (oldAvatarUrl) {
+      const url = new URL(oldAvatarUrl);
+      const marker = "/storage/v1/object/public/profile-photos/";
+
+      if (url.pathname.includes(marker)) {
+        oldAvatarPath = url.pathname.split(marker)[1];
+      }
+    }
+
+    const fileExtension = profilePhoto.name.split(".").pop();
+    const filePath = `${userId}/avatar-${Date.now()}.${fileExtension}`;
+
+    const { error: uploadError } = await supabase.storage
+      .from("profile-photos")
+      .upload(filePath, profilePhoto, {
+        upsert: false,
+      });
+
+    if (uploadError) {
+      console.error("Photo upload error:", uploadError);
+      return;
+    }
+
+    const { data: publicUrlData } = supabase.storage
+      .from("profile-photos")
+      .getPublicUrl(filePath);
+
+    console.log("Profile photo URL:", publicUrlData.publicUrl);
+
+    const { error: avatarUpdateError } = await supabase
+      .from("profiles")
+      .update({
+        avatar_url: publicUrlData.publicUrl,
+      })
+      .eq("id", userId);
+
+    if (avatarUpdateError) {
+      console.error("Avatar URL update error:", avatarUpdateError);
+      return;
+    }
+
+    if (oldAvatarPath && oldAvatarPath !== filePath) {
+      const { error: deleteError } = await supabase.storage
+        .from("profile-photos")
+        .remove([oldAvatarPath]);
+
+      if (deleteError) {
+        console.error("Old profile photo delete error:", deleteError);
+      }
+    }
+
+    setProfile((prev) => ({
+      ...prev,
+      avatar_url: publicUrlData.publicUrl,
+    }));
+
+    console.log("Profile photo uploaded successfully");
+  };
 
   const handleAddSkill = async () => {
     setSkillMessage("");
@@ -230,6 +323,9 @@ function Profile() {
       }
 
       setProfile(profileData);
+      if (profileData.avatar_url) {
+        setProfilePhoto(profileData.avatar_url);
+      }
       setLocation(profileData.location || "");
       setBio(profileData.bio || "");
       setIsPublic(profileData.is_public);
@@ -286,6 +382,36 @@ function Profile() {
       ) : (
         <>
           <h1>Profile</h1>
+          {isOwnProfile && (
+            <div>
+              <label htmlFor="profilePhoto">Profile Photo</label>
+
+              <input
+                id="profilePhoto"
+                type="file"
+                accept="image/*"
+                onChange={handlePhotoSelect}
+              />
+
+              <button type="button" onClick={handleUploadPhoto}>
+                Upload Photo
+              </button>
+            </div>
+          )}
+          {profile?.avatar_url && (
+            <img
+              src={profile.avatar_url}
+              alt="Profile"
+              width="120"
+              height="120"
+              style={{
+                width: "120px",
+                height: "120px",
+                borderRadius: "50%",
+                objectFit: "cover",
+              }}
+            />
+          )}
           <p>Welcome, {profile?.full_name}</p>
           <p>Username: {profile?.username}</p>
           <p>Role: {profile?.role}</p>
