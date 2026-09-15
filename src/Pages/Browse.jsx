@@ -27,7 +27,8 @@ function Browse() {
 
       const { data: skillsData, error: skillsError } = await supabase
         .from("skills")
-        .select("id, name")
+        .select("id, name, parent_id")
+        .not("parent_id", "is", null)
         .order("name");
 
       if (skillsError) {

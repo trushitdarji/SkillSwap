@@ -37,9 +37,11 @@ function Profile() {
   const [saving, setSaving] = useState(false);
   const [skillsLoading, setSkillsLoading] = useState(true);
   const [skills, setSkills] = useState([]);
-  const [selectedSkill, setSelectedSkill] = useState("");
+  const [selectedSkills, setSelectedSkills] = useState([]);
   const [selectedSkillType, setSelectedSkillType] = useState("offer");
   const [availableSkills, setAvailableSkills] = useState([]);
+  const [skillCategories, setSkillCategories] = useState([]);
+  const [selectedCategory, setSelectedCategory] = useState("");
   const [skillMessage, setSkillMessage] = useState("");
   const [skillSaving, setSkillSaving] = useState(false);
   const [skillRemoving, setSkillRemoving] = useState(false);
@@ -147,21 +149,22 @@ function Profile() {
     setSkillMessage("");
     setSkillSaving(true);
 
-    if (!selectedSkill) {
+    if (selectedSkills.length === 0) {
       setSkillSaving(false);
-      setSkillMessage("Please select a skill");
+      setSkillMessage("Please select at least one skill");
       return;
     }
 
-    const alreadyAdded = skills.some(
-      (item) =>
-        item.skills.id === selectedSkill &&
-        item.skill_type === selectedSkillType,
+    const alreadyAddedSkills = selectedSkills.filter((skillId) =>
+      skills.some(
+        (item) =>
+          item.skills.id === skillId && item.skill_type === selectedSkillType,
+      ),
     );
 
-    if (alreadyAdded) {
+    if (alreadyAddedSkills.length > 0) {
       setSkillSaving(false);
-      setSkillMessage("Skill already added");
+      setSkillMessage("Some selected skills are already added");
       return;
     }
 
@@ -169,41 +172,48 @@ function Profile() {
       await supabase.auth.getSession();
 
     if (sessionError) {
+      setSkillSaving(false);
       console.error("Session error:", sessionError);
       return;
     }
 
     if (!sessionData.session) {
+      setSkillSaving(false);
       navigate("/login");
       return;
     }
 
     const userId = sessionData.session.user.id;
 
-    const { error } = await supabase.from("user_skills").insert({
+    const skillsToInsert = selectedSkills.map((skillId) => ({
       user_id: userId,
-      skill_id: selectedSkill,
+      skill_id: skillId,
       skill_type: selectedSkillType,
-    });
+    }));
+
+    const { error } = await supabase.from("user_skills").insert(skillsToInsert);
 
     if (error) {
       setSkillSaving(false);
-      console.error("Add skill error:", error);
-      setSkillMessage("Failed to add skill");
+      console.error("Add skills error:", error);
+      setSkillMessage("Failed to add skills");
       return;
     }
 
-    console.log("Skill added successfully");
+    const addedSkills = selectedSkills
+      .map((skillId) => availableSkills.find((skill) => skill.id === skillId))
+      .filter(Boolean)
+      .map((skill) => ({
+        skill_type: selectedSkillType,
+        skills: skill,
+      }));
+
+    setSkills((prev) => [...prev, ...addedSkills]);
+
+    setSelectedSkills([]);
+    setSelectedCategory("");
     setSkillSaving(false);
-    setSkillMessage("Skill added successfully");
-    setSelectedSkill("");
-
-    const addedSkill = {
-      skill_type: selectedSkillType,
-      skills: availableSkills.find((skill) => skill.id === selectedSkill),
-    };
-
-    setSkills((prev) => [...prev, addedSkill]);
+    setSkillMessage("Skills added successfully");
   };
 
   const handleRemoveSkill = async (skillId, skillType) => {
@@ -362,16 +372,31 @@ function Profile() {
       setSkillsLoading(false);
 
       const { data: availableSkills, error: availableSkillsError } =
-        await supabase.from("skills").select("id, name").order("name");
+        await supabase
+          .from("skills")
+          .select("id, name, parent_id")
+          .not("parent_id", "is", null)
+          .order("name");
 
       if (availableSkillsError) {
         console.error("Available skills fetch error:", availableSkillsError);
         return;
       }
 
-      console.log("Available skills:", availableSkills);
       setAvailableSkills(availableSkills || []);
 
+      const { data: categories, error: categoriesError } = await supabase
+        .from("skills")
+        .select("id, name")
+        .is("parent_id", null)
+        .order("name");
+
+      if (categoriesError) {
+        console.error("Categories fetch error:", categoriesError);
+        return;
+      }
+
+      setSkillCategories(categories || []);
       console.log("Current profile:", profile);
     };
 
@@ -456,21 +481,64 @@ function Profile() {
 
               {skillMessage && <p>{skillMessage}</p>}
 
-              <select
-                value={selectedSkill}
-                onChange={(e) => {
-                  setSelectedSkill(e.target.value);
-                  setSkillMessage("");
-                }}
-              >
-                <option value="">Select a skill</option>
+              {!selectedCategory ? (
+                <div>
+                  <p>Select a category</p>
 
-                {availableSkills.map((skill) => (
-                  <option key={skill.id} value={skill.id}>
-                    {skill.name}
-                  </option>
-                ))}
-              </select>
+                  {skillCategories.map((category) => (
+                    <button
+                      key={category.id}
+                      type="button"
+                      onClick={() => {
+                        setSelectedCategory(category.id);
+                        setSkillMessage("");
+                      }}
+                    >
+                      {category.name} →
+                    </button>
+                  ))}
+                </div>
+              ) : (
+                <div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedCategory("");
+                      setSkillMessage("");
+                    }}
+                  >
+                    ← Back to Categories
+                  </button>
+
+                  <p>
+                    {
+                      skillCategories.find(
+                        (category) => category.id === selectedCategory,
+                      )?.name
+                    }
+                  </p>
+
+                  {availableSkills
+                    .filter((skill) => skill.parent_id === selectedCategory)
+                    .map((skill) => (
+                      <button
+                        key={skill.id}
+                        type="button"
+                        onClick={() => {
+                          setSelectedSkills((prev) =>
+                            prev.includes(skill.id)
+                              ? prev.filter((id) => id !== skill.id)
+                              : [...prev, skill.id],
+                          );
+                          setSkillMessage("");
+                        }}
+                      >
+                        {selectedSkills.includes(skill.id) ? "✓ " : ""}
+                        {skill.name}
+                      </button>
+                    ))}
+                </div>
+              )}
 
               <select
                 value={selectedSkillType}
