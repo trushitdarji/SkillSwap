@@ -5,6 +5,8 @@ import Dashboard from "./Pages/Dashboard";
 import Profile from "./Pages/Profile";
 import Browse from "./Pages/Browse";
 import SwapRequests from "./Pages/SwapRequests";
+import AdminDashboard from "./Pages/AdminDashboard";
+import AdminRoute from "./components/AdminRoute";
 
 function App() {
   return (
@@ -17,6 +19,14 @@ function App() {
         <Route path="/profile/:userId" element={<Profile />} />
         <Route path="/browse" element={<Browse />} />
         <Route path="/swap-requests" element={<SwapRequests />} />
+        <Route
+          path="/admin"
+          element={
+            <AdminRoute>
+              <AdminDashboard />
+            </AdminRoute>
+          }
+        />
       </Routes>
     </BrowserRouter>
   );

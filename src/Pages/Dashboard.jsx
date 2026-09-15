@@ -3,8 +3,10 @@ import { useNavigate } from "react-router-dom";
 import { useEffect, useState } from "react";
 
 function Dashboard() {
-  let currentUserId = null;
+  const [currentUserId, setCurrentUserId] = useState(null);
+
   const navigate = useNavigate();
+
   const [pendingRequests, setPendingRequests] = useState([]);
   const [currentSwaps, setCurrentSwaps] = useState([]);
   const [sentRequests, setSentRequests] = useState([]);
@@ -202,7 +204,26 @@ function Dashboard() {
         return;
       }
 
-      const currentUserId = data.session.user.id;
+      const { data: profile, error: profileError } = await supabase
+        .from("profiles")
+        .select("is_banned")
+        .eq("id", data.session.user.id)
+        .single();
+
+      if (profileError) {
+        console.error("Profile check error:", profileError);
+        await supabase.auth.signOut();
+        navigate("/login");
+        return;
+      }
+
+      if (profile?.is_banned) {
+        await supabase.auth.signOut();
+        navigate("/login");
+        return;
+      }
+
+      setCurrentUserId(data.session.user.id);
 
       const { data: pendingRequests, error: requestsError } = await supabase
         .from("swap_requests")

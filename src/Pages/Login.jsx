@@ -18,6 +18,7 @@ function Login() {
     setLoading(true);
 
     if (!email.trim() || !password.trim()) {
+      setLoading(false);
       setErrorMessage("Email and password are required");
       return;
     }
@@ -32,6 +33,27 @@ function Login() {
       setErrorMessage("Invalid email or password");
       return;
     }
+
+    const { data: profile, error: profileError } = await supabase
+      .from("profiles")
+      .select("is_banned")
+      .eq("id", data.user.id)
+      .single();
+
+    if (profileError) {
+      await supabase.auth.signOut();
+      setLoading(false);
+      setErrorMessage("Unable to verify account status");
+      return;
+    }
+
+    if (profile?.is_banned) {
+      await supabase.auth.signOut();
+      setLoading(false);
+      setErrorMessage("Your account has been banned by an administrator");
+      return;
+    }
+
     setLoading(false);
     console.log("Login successful:", data.user);
     navigate("/dashboard");
@@ -66,7 +88,7 @@ function Login() {
             onChange={(e) => setPassword(e.target.value)}
           />
         </div>
-        
+
         <button type="submit" disabled={loading}>
           {loading ? "Logging in..." : "Login"}
         </button>
