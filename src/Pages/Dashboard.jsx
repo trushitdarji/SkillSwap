@@ -34,6 +34,20 @@ function Dashboard() {
 
     console.log("Swap accepted:", data);
 
+    const { error: activityError } = await supabase
+      .from("activity_logs")
+      .insert({
+        user_id: data.receiver_id,
+        action_type: "swap_accepted",
+        description: "Swap request accepted",
+      });
+
+    if (activityError) {
+      console.error("Activity log insert error:", activityError);
+    } else {
+      console.log("Activity log created successfully");
+    }
+
     setPendingRequests((currentRequests) =>
       currentRequests.filter((request) => request.id !== requestId),
     );

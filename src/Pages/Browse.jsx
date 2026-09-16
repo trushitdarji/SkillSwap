@@ -206,6 +206,21 @@ function Browse() {
 
     console.log("Swap request created:", data);
 
+    const { error: activityError } = await supabase
+      .from("activity_logs")
+      .insert({
+        user_id: currentUserId,
+        action_type: "swap_requested",
+        description: `Sent a swap request to ${
+          swapUser.profile?.full_name || swapUser.profile?.username || "a user"
+        }`,
+      });
+
+    if (activityError) {
+      console.error("Activity log insert error:", activityError);
+    } else {
+      console.log("Activity log created successfully");
+    }
     alert("Swap request sent successfully!");
 
     setSwapUser(null);
