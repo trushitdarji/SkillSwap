@@ -14,6 +14,8 @@ function Dashboard() {
   const [ratingSwap, setRatingSwap] = useState(null);
   const [ratingValue, setRatingValue] = useState("");
   const [feedback, setFeedback] = useState("");
+  const [announcements, setAnnouncements] = useState([]);
+  const [announcementsLoading, setAnnouncementsLoading] = useState(true);
 
   const handleAcceptSwap = async (requestId) => {
     console.log("Accept clicked:", requestId);
@@ -223,7 +225,9 @@ function Dashboard() {
         return;
       }
 
-      setCurrentUserId(data.session.user.id);
+      const userId = data.session.user.id;
+
+      setCurrentUserId(userId);
 
       const { data: pendingRequests, error: requestsError } = await supabase
         .from("swap_requests")
@@ -242,7 +246,7 @@ function Dashboard() {
   )
 `,
         )
-        .eq("receiver_id", currentUserId)
+        .eq("receiver_id", userId)
         .eq("status", "pending");
 
       if (requestsError) {
@@ -273,7 +277,7 @@ function Dashboard() {
     )
   `,
         )
-        .or(`sender_id.eq.${currentUserId},receiver_id.eq.${currentUserId}`)
+        .or(`sender_id.eq.${userId},receiver_id.eq.${userId}`)
         .in("status", ["accepted", "completed"]);
 
       if (swapsError) {
@@ -283,7 +287,7 @@ function Dashboard() {
 
       setCurrentSwaps(acceptedSwaps);
 
-      console.log("Current User ID:", currentUserId);
+      console.log("Current User ID:", userId);
       const { data: sentRequests, error: sentRequestsError } = await supabase
         .from("swap_requests")
         .select(
@@ -301,7 +305,7 @@ function Dashboard() {
     )
   `,
         )
-        .eq("sender_id", currentUserId)
+        .eq("sender_id", userId)
         .eq("status", "pending");
       console.log("Sent Requests Data:", sentRequests);
       console.log("Sent Requests Error:", sentRequestsError);
@@ -316,6 +320,22 @@ function Dashboard() {
 
       console.log("Pending swap requests:", pendingRequests);
       console.log("Current swaps:", acceptedSwaps);
+
+      const { data: announcementData, error: announcementError } =
+        await supabase
+          .from("notifications")
+          .select("id, title, message, created_at, is_read")
+          .eq("user_id", data.session.user.id)
+          .eq("is_announcement", true)
+          .order("created_at", { ascending: false });
+
+      if (announcementError) {
+        console.error("Announcements error:", announcementError);
+      } else {
+        setAnnouncements(announcementData || []);
+      }
+
+      setAnnouncementsLoading(false);
     };
 
     checkSession();
@@ -325,6 +345,29 @@ function Dashboard() {
     <div>
       <h1>SkillSwap Dashboard</h1>
       <p>Welcome to SkillSwap</p>
+      {announcementsLoading ? (
+        <p>Loading announcements...</p>
+      ) : announcements.length === 0 ? (
+        <p>No announcements.</p>
+      ) : (
+        <div>
+          <h2>Platform Announcements</h2>
+
+          {announcements.map((announcement) => (
+            <div key={announcement.id}>
+              <h3>{announcement.title}</h3>
+
+              <p>{announcement.message}</p>
+
+              <small>
+                {new Date(announcement.created_at).toLocaleString()}
+              </small>
+
+              <hr />
+            </div>
+          ))}
+        </div>
+      )}
       <h2>Pending Swap Requests</h2>
 
       {pendingRequests?.length === 0 ? (

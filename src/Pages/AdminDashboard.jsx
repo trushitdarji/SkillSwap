@@ -15,6 +15,15 @@ function AdminDashboard() {
   const [roleUpdating, setRoleUpdating] = useState(null);
   const [currentUserId, setCurrentUserId] = useState(null);
   const [banUpdating, setBanUpdating] = useState(null);
+  const [swaps, setSwaps] = useState([]);
+  const [swapsLoading, setSwapsLoading] = useState(true);
+  const [swapUpdating, setSwapUpdating] = useState(null);
+  const [userSearch, setUserSearch] = useState("");
+  const [announcementTitle, setAnnouncementTitle] = useState("");
+  const [announcementMessage, setAnnouncementMessage] = useState("");
+  const [announcementLoading, setAnnouncementLoading] = useState(false);
+  const [announcementMessageStatus, setAnnouncementMessageStatus] =
+    useState("");
 
   useEffect(() => {
     const fetchStats = async () => {
@@ -110,6 +119,51 @@ function AdminDashboard() {
     fetchUsers();
   }, []);
 
+  useEffect(() => {
+    const fetchSwaps = async () => {
+      const { data, error } = await supabase
+        .from("swap_requests")
+        .select(
+          `
+        id,
+        sender_id,
+        receiver_id,
+        offered_skill_id,
+        requested_skill_id,
+        message,
+        status,
+        created_at,
+        sender:profiles!swap_requests_sender_id_fkey (
+          full_name,
+          username
+        ),
+        receiver:profiles!swap_requests_receiver_id_fkey (
+          full_name,
+          username
+        ),
+        offered_skill:skills!swap_requests_offered_skill_id_fkey (
+          name
+        ),
+        requested_skill:skills!swap_requests_requested_skill_id_fkey (
+          name
+        )
+      `,
+        )
+        .order("created_at", { ascending: false });
+
+      if (error) {
+        console.error("Swaps fetch error:", error);
+        setSwapsLoading(false);
+        return;
+      }
+
+      setSwaps(data || []);
+      setSwapsLoading(false);
+    };
+
+    fetchSwaps();
+  }, []);
+
   const handleRoleChange = async (userId, newRole) => {
     setRoleUpdating(userId);
 
@@ -168,10 +222,108 @@ function AdminDashboard() {
     setBanUpdating(null);
   };
 
+  const handleRejectSwap = async (swapId) => {
+    setSwapUpdating(swapId);
+
+    const { data, error } = await supabase
+      .from("swap_requests")
+      .update({ status: "rejected" })
+      .eq("id", swapId)
+      .eq("status", "pending")
+      .select()
+      .single();
+
+    if (error) {
+      console.error("Swap moderation error:", error);
+      setSwapUpdating(null);
+      return;
+    }
+
+    if (!data) {
+      console.error("Swap moderation failed");
+      setSwapUpdating(null);
+      return;
+    }
+
+    setSwaps((prevSwaps) =>
+      prevSwaps.map((swap) =>
+        swap.id === swapId ? { ...swap, status: "rejected" } : swap,
+      ),
+    );
+
+    setSwapUpdating(null);
+  };
+
+  const handleCreateAnnouncement = async (e) => {
+    e.preventDefault();
+
+    if (!announcementTitle.trim() || !announcementMessage.trim()) {
+      setAnnouncementMessageStatus("Title and message are required.");
+      return;
+    }
+
+    setAnnouncementLoading(true);
+    setAnnouncementMessageStatus("");
+
+    const { data, error } = await supabase.rpc("create_admin_announcement", {
+      announcement_title: announcementTitle.trim(),
+      announcement_message: announcementMessage.trim(),
+    });
+
+    if (error) {
+      console.error("Announcement error:", error);
+      setAnnouncementMessageStatus(error.message);
+      setAnnouncementLoading(false);
+      return;
+    }
+
+    setAnnouncementTitle("");
+    setAnnouncementMessage("");
+    setAnnouncementMessageStatus(
+      `Announcement sent to ${data} users successfully.`,
+    );
+
+    setAnnouncementLoading(false);
+  };
+
   return (
     <div>
       <h1>Admin Dashboard</h1>
       <p>Welcome to the admin panel.</p>
+
+      <div>
+        <h2>Platform Announcement</h2>
+
+        <form onSubmit={handleCreateAnnouncement}>
+          <div>
+            <label>Title</label>
+            <input
+              type="text"
+              placeholder="Announcement title"
+              value={announcementTitle}
+              onChange={(e) => setAnnouncementTitle(e.target.value)}
+              maxLength={200}
+            />
+          </div>
+
+          <div>
+            <label>Message</label>
+            <textarea
+              placeholder="Write announcement message..."
+              value={announcementMessage}
+              onChange={(e) => setAnnouncementMessage(e.target.value)}
+              maxLength={2000}
+              rows={5}
+            />
+          </div>
+
+          <button type="submit" disabled={announcementLoading}>
+            {announcementLoading ? "Sending..." : "Send Announcement"}
+          </button>
+        </form>
+
+        {announcementMessageStatus && <p>{announcementMessageStatus}</p>}
+      </div>
 
       {loading ? (
         <p>Loading stats...</p>
@@ -202,57 +354,123 @@ function AdminDashboard() {
       <div>
         <h2>User Management</h2>
 
+        <input
+          type="text"
+          placeholder="Search users..."
+          value={userSearch}
+          onChange={(e) => setUserSearch(e.target.value)}
+        />
+
         {usersLoading ? (
           <p>Loading users...</p>
         ) : users.length === 0 ? (
           <p>No users found.</p>
         ) : (
           <div>
-            {users.map((user) => (
-              <div key={user.id}>
-                <h3>{user.full_name || "Unnamed User"}</h3>
+            {users
+              .filter((user) => {
+                const search = userSearch.toLowerCase().trim();
 
-                <p>Username: @{user.username || "N/A"}</p>
+                if (!search) return true;
 
-                <p>Email: {user.email || "N/A"}</p>
+                return (
+                  user.full_name?.toLowerCase().includes(search) ||
+                  user.username?.toLowerCase().includes(search) ||
+                  user.email?.toLowerCase().includes(search) ||
+                  user.location?.toLowerCase().includes(search)
+                );
+              })
+              .map((user) => (
+                <div key={user.id}>
+                  <h3>{user.full_name || "Unnamed User"}</h3>
 
-                <p>Location: {user.location || "Not provided"}</p>
+                  <p>Username: @{user.username || "N/A"}</p>
 
-                <p>Profile: {user.is_public ? "Public" : "Private"}</p>
+                  <p>Email: {user.email || "N/A"}</p>
 
-                <p>Role: {user.role}</p>
+                  <p>Location: {user.location || "Not provided"}</p>
 
-                {user.id !== currentUserId && (
+                  <p>Profile: {user.is_public ? "Public" : "Private"}</p>
+
+                  <p>Role: {user.role}</p>
+
+                  {user.id !== currentUserId && (
+                    <button
+                      type="button"
+                      disabled={roleUpdating === user.id}
+                      onClick={() =>
+                        handleRoleChange(
+                          user.id,
+                          user.role === "admin" ? "user" : "admin",
+                        )
+                      }
+                    >
+                      {roleUpdating === user.id
+                        ? "Updating..."
+                        : user.role === "admin"
+                          ? "Remove Admin"
+                          : "Make Admin"}
+                    </button>
+                  )}
+                  {user.id !== currentUserId && (
+                    <button
+                      type="button"
+                      disabled={banUpdating === user.id}
+                      onClick={() => handleBanChange(user.id, !user.is_banned)}
+                    >
+                      {banUpdating === user.id
+                        ? "Updating..."
+                        : user.is_banned
+                          ? "Unban User"
+                          : "Ban User"}
+                    </button>
+                  )}
+                </div>
+              ))}
+          </div>
+        )}
+      </div>
+      <div>
+        <h2>Swap Monitoring</h2>
+
+        {swapsLoading ? (
+          <p>Loading swaps...</p>
+        ) : swaps.length === 0 ? (
+          <p>No swap requests found.</p>
+        ) : (
+          <div>
+            {swaps.map((swap) => (
+              <div key={swap.id}>
+                <h3>
+                  {swap.sender?.full_name || "Unknown User"} →{" "}
+                  {swap.receiver?.full_name || "Unknown User"}
+                </h3>
+
+                <p>Sender: @{swap.sender?.username || "N/A"}</p>
+
+                <p>Receiver: @{swap.receiver?.username || "N/A"}</p>
+
+                <p>Offering: {swap.offered_skill?.name || "N/A"}</p>
+
+                <p>Wants to learn: {swap.requested_skill?.name || "N/A"}</p>
+
+                <p>Message: {swap.message || "No message"}</p>
+
+                <p>Status: {swap.status}</p>
+
+                <p>Created: {new Date(swap.created_at).toLocaleString()}</p>
+
+                {swap.status === "pending" && (
                   <button
                     type="button"
-                    disabled={roleUpdating === user.id}
-                    onClick={() =>
-                      handleRoleChange(
-                        user.id,
-                        user.role === "admin" ? "user" : "admin",
-                      )
-                    }
+                    disabled={swapUpdating === swap.id}
+                    onClick={() => handleRejectSwap(swap.id)}
                   >
-                    {roleUpdating === user.id
-                      ? "Updating..."
-                      : user.role === "admin"
-                        ? "Remove Admin"
-                        : "Make Admin"}
+                    {swapUpdating === swap.id ? "Rejecting..." : "Reject Swap"}
                   </button>
                 )}
-                {user.id !== currentUserId && (
-                  <button
-                    type="button"
-                    disabled={banUpdating === user.id}
-                    onClick={() => handleBanChange(user.id, !user.is_banned)}
-                  >
-                    {banUpdating === user.id
-                      ? "Updating..."
-                      : user.is_banned
-                        ? "Unban User"
-                        : "Ban User"}
-                  </button>
-                )}
+
+                <hr />
               </div>
             ))}
           </div>
