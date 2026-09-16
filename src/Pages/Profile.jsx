@@ -43,6 +43,7 @@ function Profile() {
   const [skillCategories, setSkillCategories] = useState([]);
   const [selectedCategory, setSelectedCategory] = useState("");
   const [skillMessage, setSkillMessage] = useState("");
+  const [skillDescription, setSkillDescription] = useState("");
   const [skillSaving, setSkillSaving] = useState(false);
   const [skillRemoving, setSkillRemoving] = useState(false);
 
@@ -189,6 +190,8 @@ function Profile() {
       user_id: userId,
       skill_id: skillId,
       skill_type: selectedSkillType,
+      description: skillDescription.trim() || null,
+      moderation_status: "pending",
     }));
 
     const { error } = await supabase.from("user_skills").insert(skillsToInsert);
@@ -205,15 +208,17 @@ function Profile() {
       .filter(Boolean)
       .map((skill) => ({
         skill_type: selectedSkillType,
+        moderation_status: "pending",
         skills: skill,
       }));
 
     setSkills((prev) => [...prev, ...addedSkills]);
 
     setSelectedSkills([]);
+    setSkillDescription("");
     setSelectedCategory("");
     setSkillSaving(false);
-    setSkillMessage("Skills added successfully");
+    setSkillMessage("Skills added and sent for approval");
   };
 
   const handleRemoveSkill = async (skillId, skillType) => {
@@ -354,6 +359,7 @@ function Profile() {
         .select(
           `
     skill_type,
+    moderation_status,
     skills (
       id,
       name
@@ -547,6 +553,12 @@ function Profile() {
                 <option value="offer">I can teach</option>
                 <option value="want">I want to learn</option>
               </select>
+
+              <textarea
+                placeholder="Describe this skill"
+                value={skillDescription}
+                onChange={(e) => setSkillDescription(e.target.value)}
+              />
             </>
           )}
           {skillsLoading ? (
@@ -566,6 +578,10 @@ function Profile() {
                   .map((item) => (
                     <div key={`${item.skills.id}-offer`}>
                       <span>{item.skills.name}</span>
+
+                      {item.moderation_status === "pending" && (
+                        <small>Pending approval</small>
+                      )}
 
                       {isOwnProfile && (
                         <button
@@ -593,6 +609,10 @@ function Profile() {
                   .map((item) => (
                     <div key={`${item.skills.id}-want`}>
                       <span>{item.skills.name}</span>
+
+                      {item.moderation_status === "pending" && (
+                        <small>Pending approval</small>
+                      )}
 
                       {isOwnProfile && (
                         <button
