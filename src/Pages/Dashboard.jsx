@@ -448,6 +448,13 @@ function Dashboard() {
               <div>
                 <h3>Rate User</h3>
 
+                <p>
+                  Rate:{" "}
+                  {ratingSwap.sender_id === currentUserId
+                    ? ratingSwap.receiver?.full_name
+                    : ratingSwap.sender?.full_name}
+                </p>
+
                 <select
                   value={ratingValue}
                   onChange={(e) => setRatingValue(e.target.value)}

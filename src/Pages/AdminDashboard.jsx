@@ -17,6 +17,8 @@ function AdminDashboard() {
   const [banUpdating, setBanUpdating] = useState(null);
   const [swaps, setSwaps] = useState([]);
   const [swapsLoading, setSwapsLoading] = useState(true);
+  const [pendingSkills, setPendingSkills] = useState([]);
+  const [pendingSkillsLoading, setPendingSkillsLoading] = useState(true);
   const [swapUpdating, setSwapUpdating] = useState(null);
   const [userSearch, setUserSearch] = useState("");
   const [announcementTitle, setAnnouncementTitle] = useState("");
@@ -120,6 +122,43 @@ function AdminDashboard() {
   }, []);
 
   useEffect(() => {
+    const fetchPendingSkills = async () => {
+      const { data, error } = await supabase
+        .from("user_skills")
+        .select(
+          `
+        id,
+        user_id,
+        skill_id,
+        skill_type,
+        description,
+        moderation_status,
+        profiles (
+          full_name,
+          username
+        ),
+        skills (
+          name
+        )
+      `,
+        )
+        .eq("moderation_status", "pending")
+        .order("id", { ascending: false });
+
+      if (error) {
+        console.error("Pending skills fetch error:", error);
+        setPendingSkillsLoading(false);
+        return;
+      }
+
+      setPendingSkills(data || []);
+      setPendingSkillsLoading(false);
+    };
+
+    fetchPendingSkills();
+  }, []);
+
+  useEffect(() => {
     const fetchSwaps = async () => {
       const { data, error } = await supabase
         .from("swap_requests")
@@ -220,6 +259,22 @@ function AdminDashboard() {
     );
 
     setBanUpdating(null);
+  };
+
+  const handleSkillModeration = async (skillId, newStatus) => {
+    const { error } = await supabase
+      .from("user_skills")
+      .update({ moderation_status: newStatus })
+      .eq("id", skillId);
+
+    if (error) {
+      console.error("Skill moderation error:", error);
+      return;
+    }
+
+    setPendingSkills((prevSkills) =>
+      prevSkills.filter((skill) => skill.id !== skillId),
+    );
   };
 
   const handleRejectSwap = async (swapId) => {
@@ -427,6 +482,52 @@ function AdminDashboard() {
                   )}
                 </div>
               ))}
+          </div>
+        )}
+      </div>
+      <div>
+        <h2>Skill Moderation</h2>
+
+        {pendingSkillsLoading ? (
+          <p>Loading pending skills...</p>
+        ) : pendingSkills.length === 0 ? (
+          <p>No pending skills.</p>
+        ) : (
+          <div>
+            {pendingSkills.map((skill) => (
+              <div key={skill.id}>
+                <h3>{skill.skills?.name || "Unknown Skill"}</h3>
+
+                <p>User: @{skill.profiles?.username || "N/A"}</p>
+
+                <p>
+                  Type:{" "}
+                  {skill.skill_type === "offer"
+                    ? "I can teach"
+                    : "I want to learn"}
+                </p>
+
+                <p>Description: {skill.description || "No description"}</p>
+
+                <p>Status: {skill.moderation_status}</p>
+
+                <button
+                  type="button"
+                  onClick={() => handleSkillModeration(skill.id, "approved")}
+                >
+                  Approve
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => handleSkillModeration(skill.id, "rejected")}
+                >
+                  Reject
+                </button>
+
+                <hr />
+              </div>
+            ))}
           </div>
         )}
       </div>

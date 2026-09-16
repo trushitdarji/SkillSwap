@@ -354,7 +354,7 @@ function Profile() {
       setIsPublic(profileData.is_public);
       setAvailability(profileData.availability || []);
 
-      const { data: userSkills, error: skillsError } = await supabase
+      const userSkillsQuery = supabase
         .from("user_skills")
         .select(
           `
@@ -367,6 +367,12 @@ function Profile() {
   `,
         )
         .eq("user_id", userId || data.session.user.id);
+
+      if (!isOwnProfile) {
+        userSkillsQuery.eq("moderation_status", "approved");
+      }
+
+      const { data: userSkills, error: skillsError } = await userSkillsQuery;
 
       if (skillsError) {
         console.error("Skills fetch error:", skillsError);
@@ -582,6 +588,9 @@ function Profile() {
                       {item.moderation_status === "pending" && (
                         <small>Pending approval</small>
                       )}
+                      {item.moderation_status === "rejected" && (
+                        <small>Rejected</small>
+                      )}
 
                       {isOwnProfile && (
                         <button
@@ -612,6 +621,9 @@ function Profile() {
 
                       {item.moderation_status === "pending" && (
                         <small>Pending approval</small>
+                      )}
+                      {item.moderation_status === "rejected" && (
+                        <small>Rejected</small>
                       )}
 
                       {isOwnProfile && (

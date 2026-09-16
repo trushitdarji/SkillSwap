@@ -82,6 +82,7 @@ function Browse() {
       const { data: allUserSkills, error: allUserSkillsError } = await supabase
         .from("user_skills")
         .select("user_id, skill_id, skill_type")
+        .eq("moderation_status", "approved")
         .neq("user_id", currentUserId);
 
       if (allUserSkillsError) {
@@ -265,7 +266,8 @@ function Browse() {
             const { data: skillResults, error: skillError } = await supabase
               .from("user_skills")
               .select("user_id, skill_id, skill_type")
-              .eq("skill_type", "offer");
+              .eq("skill_type", "offer")
+              .eq("moderation_status", "approved");
 
             if (skillError) {
               console.error("User search error:", skillError);

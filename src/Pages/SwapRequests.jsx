@@ -9,6 +9,7 @@ function SwapRequests() {
   const [ratingRequest, setRatingRequest] = useState(null);
   const [selectedRating, setSelectedRating] = useState(0);
   const [ratedRequests, setRatedRequests] = useState([]);
+  const [currentUserId, setCurrentUserId] = useState(null);
   const [profileNames, setProfileNames] = useState({});
   const [skillNames, setSkillNames] = useState({});
 
@@ -199,6 +200,7 @@ function SwapRequests() {
       }
 
       const currentUserId = sessionData.session.user.id;
+      setCurrentUserId(currentUserId);
 
       const { data: existingRatings, error: ratingsError } = await supabase
         .from("ratings")
@@ -291,6 +293,12 @@ function SwapRequests() {
   if (error) {
     return <p>{error}</p>;
   }
+
+  const revieweeId = ratingRequest
+    ? ratingRequest.sender_id === currentUserId
+      ? ratingRequest.receiver_id
+      : ratingRequest.sender_id
+    : null;
 
   return (
     <div>
@@ -388,14 +396,7 @@ function SwapRequests() {
         <div>
           <h2>Rate User</h2>
 
-          <p>
-            Rate:{" "}
-            {profileNames[
-              ratingRequest.sender_id === ratingRequest.receiver_id
-                ? ratingRequest.sender_id
-                : ratingRequest.sender_id
-            ] || "User"}
-          </p>
+          <p>Rate: {profileNames[revieweeId] || "User"}</p>
 
           <div>
             {[1, 2, 3, 4, 5].map((star) => (
