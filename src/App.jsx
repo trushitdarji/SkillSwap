@@ -7,11 +7,13 @@ import Browse from "./Pages/Browse";
 import SwapRequests from "./Pages/SwapRequests";
 import AdminDashboard from "./Pages/AdminDashboard";
 import AdminRoute from "./components/AdminRoute";
+import Home from "./Pages/Home";
 
 function App() {
   return (
     <BrowserRouter>
       <Routes>
+        <Route path="/" element={<Home />} />
         <Route path="/login" element={<Login />} />
         <Route path="/signup" element={<Signup />} />
         <Route path="/dashboard" element={<Dashboard />} />

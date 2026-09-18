@@ -69,6 +69,21 @@ function Dashboard() {
     }
 
     console.log("Swap rejected:", data);
+
+    const { error: activityError } = await supabase
+      .from("activity_logs")
+      .insert({
+        user_id: data.receiver_id,
+        action_type: "swap_rejected",
+        description: "Swap request rejected",
+      });
+
+    if (activityError) {
+      console.error("Activity log insert error:", activityError);
+    } else {
+      console.log("Activity log created successfully");
+    }
+
     setPendingRequests((currentRequests) =>
       currentRequests.filter((request) => request.id !== requestId),
     );
@@ -90,6 +105,20 @@ function Dashboard() {
     }
 
     console.log("Swap cancelled:", data);
+
+    const { error: activityError } = await supabase
+      .from("activity_logs")
+      .insert({
+        user_id: data.sender_id,
+        action_type: "swap_cancelled",
+        description: "Swap request cancelled",
+      });
+
+    if (activityError) {
+      console.error("Activity log insert error:", activityError);
+    } else {
+      console.log("Activity log created successfully");
+    }
 
     setSentRequests((currentRequests) =>
       currentRequests.filter((request) => request.id !== requestId),
@@ -132,6 +161,22 @@ function Dashboard() {
     }
 
     console.log("Swap completion updated:", data);
+
+    if (data.status === "completed") {
+      const { error: activityError } = await supabase
+        .from("activity_logs")
+        .insert({
+          user_id: currentUserId,
+          action_type: "swap_completed",
+          description: "Swap completed successfully",
+        });
+
+      if (activityError) {
+        console.error("Activity log insert error:", activityError);
+      } else {
+        console.log("Activity log created successfully");
+      }
+    }
 
     setCurrentSwaps((currentSwaps) =>
       currentSwaps.map((currentSwap) =>
@@ -188,6 +233,21 @@ function Dashboard() {
     }
 
     console.log("Rating submitted:", data);
+
+    const { error: activityError } = await supabase
+      .from("activity_logs")
+      .insert({
+        user_id: currentUserId,
+        action_type: "rating_submitted",
+        description: "Rating submitted",
+      });
+
+    if (activityError) {
+      console.error("Activity log insert error:", activityError);
+    } else {
+      console.log("Activity log created successfully");
+    }
+
     setRatingSwap(null);
     setRatingValue("");
     setFeedback("");

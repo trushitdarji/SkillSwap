@@ -1,6 +1,40 @@
 import { useEffect, useState } from "react";
 import { supabase } from "../lib/supabase";
 
+const downloadCSV = (filename, rows) => {
+  if (!rows || rows.length === 0) {
+    alert("No data available for this report.");
+    return;
+  }
+
+  const headers = Object.keys(rows[0]);
+
+  const csvContent = [
+    headers.join(","),
+    ...rows.map((row) =>
+      headers
+        .map((header) => {
+          const value = row[header] ?? "";
+          return `"${String(value).replace(/"/g, '""')}"`;
+        })
+        .join(","),
+    ),
+  ].join("\n");
+
+  const blob = new Blob([csvContent], {
+    type: "text/csv;charset=utf-8;",
+  });
+
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+
+  link.href = url;
+  link.download = filename;
+  link.click();
+
+  URL.revokeObjectURL(url);
+};
+
 function AdminDashboard() {
   const [stats, setStats] = useState({
     users: 0,
@@ -26,6 +60,9 @@ function AdminDashboard() {
   const [announcementLoading, setAnnouncementLoading] = useState(false);
   const [announcementMessageStatus, setAnnouncementMessageStatus] =
     useState("");
+  const [reportRatings, setReportRatings] = useState([]);
+  const [reportActivityLogs, setReportActivityLogs] = useState([]);
+  const [reportsLoading, setReportsLoading] = useState(true);
 
   useEffect(() => {
     const fetchStats = async () => {
@@ -203,6 +240,56 @@ function AdminDashboard() {
     fetchSwaps();
   }, []);
 
+  useEffect(() => {
+    const fetchReportData = async () => {
+      setReportsLoading(true);
+
+      const { data: ratingsData, error: ratingsError } = await supabase
+        .from("ratings")
+        .select(
+          `
+        id,
+        swap_request_id,
+        reviewer_id,
+        reviewee_id,
+        rating,
+        feedback,
+        created_at
+      `,
+        )
+        .order("created_at", { ascending: false });
+
+      if (ratingsError) {
+        console.error("Report ratings fetch error:", ratingsError);
+      } else {
+        setReportRatings(ratingsData || []);
+      }
+
+      const { data: activityData, error: activityError } = await supabase
+        .from("activity_logs")
+        .select(
+          `
+        id,
+        user_id,
+        action_type,
+        description,
+        created_at
+      `,
+        )
+        .order("created_at", { ascending: false });
+
+      if (activityError) {
+        console.error("Report activity fetch error:", activityError);
+      } else {
+        setReportActivityLogs(activityData || []);
+      }
+
+      setReportsLoading(false);
+    };
+
+    fetchReportData();
+  }, []);
+
   const handleRoleChange = async (userId, newRole) => {
     setRoleUpdating(userId);
 
@@ -339,6 +426,103 @@ function AdminDashboard() {
     );
 
     setAnnouncementLoading(false);
+  };
+
+  const handleDownloadUsersReport = () => {
+    const rows = users.map((user) => ({
+      name: user.full_name || "",
+      username: user.username || "",
+      email: user.email || "",
+      location: user.location || "",
+      profile: user.is_public ? "Public" : "Private",
+      role: user.role || "",
+      status: user.is_banned ? "Banned" : "Active",
+    }));
+
+    downloadCSV("users_report.csv", rows);
+  };
+
+  const handleDownloadSwapsReport = () => {
+    const rows = swaps.map((swap) => ({
+      sender: swap.sender?.full_name || "",
+      sender_username: swap.sender?.username || "",
+      receiver: swap.receiver?.full_name || "",
+      receiver_username: swap.receiver?.username || "",
+      offered_skill: swap.offered_skill?.name || "",
+      requested_skill: swap.requested_skill?.name || "",
+      message: swap.message || "",
+      status: swap.status || "",
+      created_at: swap.created_at
+        ? new Date(swap.created_at).toLocaleString()
+        : "",
+    }));
+
+    downloadCSV("swaps_report.csv", rows);
+  };
+
+  const handleDownloadRatingsReport = () => {
+    const rows = reportRatings.map((rating) => {
+      const reviewer = users.find((user) => user.id === rating.reviewer_id);
+
+      const reviewee = users.find((user) => user.id === rating.reviewee_id);
+
+      return {
+        reviewer: reviewer?.full_name || "Unknown User",
+        reviewee: reviewee?.full_name || "Unknown User",
+        rating: rating.rating,
+        feedback: rating.feedback || "",
+        created_at: rating.created_at
+          ? new Date(rating.created_at).toLocaleString()
+          : "",
+      };
+    });
+
+    downloadCSV("ratings_feedback_report.csv", rows);
+  };
+
+  const handleDownloadActivityReport = () => {
+    const rows = reportActivityLogs.map((log) => {
+      const user = users.find((item) => item.id === log.user_id);
+
+      return {
+        user: user?.full_name || "Unknown User",
+        action_type: log.action_type || "",
+        description: log.description || "",
+        created_at: log.created_at
+          ? new Date(log.created_at).toLocaleString()
+          : "",
+      };
+    });
+
+    downloadCSV("activity_log_report.csv", rows);
+  };
+
+  const reportSummary = {
+    totalUsers: users.length,
+    activeUsers: users.filter((user) => !user.is_banned).length,
+    bannedUsers: users.filter((user) => user.is_banned).length,
+    adminUsers: users.filter((user) => user.role === "admin").length,
+
+    pendingSwaps: swaps.filter((swap) => swap.status === "pending").length,
+    acceptedSwaps: swaps.filter((swap) => swap.status === "accepted").length,
+    completedSwaps: swaps.filter((swap) => swap.status === "completed").length,
+    rejectedSwaps: swaps.filter((swap) => swap.status === "rejected").length,
+    cancelledSwaps: swaps.filter((swap) => swap.status === "cancelled").length,
+
+    totalRatings: reportRatings.length,
+
+    averageRating:
+      reportRatings.length > 0
+        ? (
+            reportRatings.reduce(
+              (total, item) => total + Number(item.rating),
+              0,
+            ) / reportRatings.length
+          ).toFixed(2)
+        : "0.00",
+
+    pendingSkillModerations: pendingSkills.length,
+    totalActivityLogs: reportActivityLogs.length,
   };
 
   return (
@@ -574,6 +758,50 @@ function AdminDashboard() {
                 <hr />
               </div>
             ))}
+          </div>
+        )}
+      </div>
+      <div>
+        <h2>Reports Summary</h2>
+        <button type="button" onClick={handleDownloadUsersReport}>
+          Download Users Report
+        </button>
+        <button type="button" onClick={handleDownloadSwapsReport}>
+          Download Swaps Report
+        </button>
+        <button type="button" onClick={handleDownloadRatingsReport}>
+          Download Ratings & Feedback Report
+        </button>
+        <button type="button" onClick={handleDownloadActivityReport}>
+          Download Activity Report
+        </button>
+
+        {reportsLoading ? (
+          <p>Loading reports...</p>
+        ) : (
+          <div>
+            <h3>Users</h3>
+            <p>Total Users: {reportSummary.totalUsers}</p>
+            <p>Active Users: {reportSummary.activeUsers}</p>
+            <p>Banned Users: {reportSummary.bannedUsers}</p>
+            <p>Admin Users: {reportSummary.adminUsers}</p>
+
+            <h3>Swaps</h3>
+            <p>Pending: {reportSummary.pendingSwaps}</p>
+            <p>Accepted: {reportSummary.acceptedSwaps}</p>
+            <p>Completed: {reportSummary.completedSwaps}</p>
+            <p>Rejected: {reportSummary.rejectedSwaps}</p>
+            <p>Cancelled: {reportSummary.cancelledSwaps}</p>
+
+            <h3>Ratings & Feedback</h3>
+            <p>Total Ratings: {reportSummary.totalRatings}</p>
+            <p>Average Rating: {reportSummary.averageRating}</p>
+
+            <h3>Activity</h3>
+            <p>Total Activity Logs: {reportSummary.totalActivityLogs}</p>
+            <p>
+              Pending Skill Moderations: {reportSummary.pendingSkillModerations}
+            </p>
           </div>
         )}
       </div>
