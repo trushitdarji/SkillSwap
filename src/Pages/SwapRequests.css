@@ -1,0 +1,1041 @@
+/* =========================
+   SWAP REQUESTS PAGE
+========================= */
+
+.swap-page {
+  min-height: 100vh;
+  padding: 32px 54px 70px;
+  background: #f8f7ff;
+  color: #16132f;
+}
+
+.swap-page-header {
+  max-width: 1200px;
+  margin: 0 auto 24px;
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 30px;
+}
+
+.swap-eyebrow {
+  display: inline-block;
+  margin-bottom: 8px;
+  padding: 4px 8px;
+  border-radius: 6px;
+  background: #eeebff;
+  color: #5748d9;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+}
+
+.swap-page-header h1 {
+  margin: 0 0 7px;
+  font-size: 30px;
+  line-height: 1.15;
+  letter-spacing: -0.03em;
+}
+
+.swap-page-header p {
+  max-width: 470px;
+  margin: 0;
+  color: #716c82;
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.swap-status-tabs {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px;
+  border: 1px solid #ddd9f4;
+  border-radius: 9px;
+  background: #efedff;
+}
+
+.swap-status-tabs button {
+  border: 0;
+  padding: 7px 13px;
+  border-radius: 6px;
+  background: transparent;
+  color: #716b83;
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.swap-status-tabs button.active {
+  background: #ffffff;
+  color: #5545d8;
+  box-shadow: 0 1px 4px rgba(50, 40, 120, 0.08);
+}
+
+/* =========================
+   REQUEST TYPE TABS
+========================= */
+
+.swap-request-tabs {
+  max-width: 1200px;
+  margin: 0 auto 24px;
+  display: flex;
+  gap: 8px;
+}
+
+.swap-request-tab {
+  min-width: 154px;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 9px 12px;
+  border: 1px solid #ebe8f4;
+  border-radius: 9px;
+  background: #ffffff;
+}
+
+.swap-request-tab.active {
+  border-color: #ebe7ff;
+}
+
+.swap-tab-icon {
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  border-radius: 7px;
+  background: #eeebff;
+  color: #5545d8;
+  font-size: 13px;
+}
+
+.swap-request-tab > div {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.swap-request-tab small {
+  color: #aaa5b6;
+  font-size: 7px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+}
+
+.swap-request-tab strong {
+  color: #302b4b;
+  font-size: 10px;
+}
+
+.swap-tab-count {
+  margin-left: auto;
+  min-width: 20px;
+  padding: 3px 6px;
+  border-radius: 999px;
+  background: #f0eeff;
+  color: #5545d8;
+  font-size: 8px;
+  font-weight: 800;
+  text-align: center;
+}
+
+/* =========================
+   SECTION
+========================= */
+
+.swap-section {
+  max-width: 1200px;
+  margin: 0 auto 34px;
+}
+
+.swap-section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.swap-section-header h2 {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin: 0;
+  font-size: 15px;
+  letter-spacing: -0.01em;
+}
+
+.swap-section-header h2 span {
+  padding: 3px 7px;
+  border-radius: 999px;
+  background: #e9e6ff;
+  color: #5545d8;
+  font-size: 8px;
+  font-weight: 800;
+}
+
+.swap-section-header p {
+  margin: 0;
+  color: #827c91;
+  font-size: 9px;
+}
+
+/* =========================
+   REQUEST CARD
+========================= */
+
+.swap-request-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.swap-request-card {
+  padding: 16px;
+  border: 1px solid #ebe8f4;
+  border-radius: 13px;
+  background: #ffffff;
+  box-shadow: 0 2px 8px rgba(50, 45, 100, 0.035);
+}
+
+.swap-request-card.is-rejected {
+  opacity: 0.72;
+}
+
+.swap-card-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 15px;
+}
+
+.swap-user-info {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.swap-avatar {
+  width: 32px;
+  height: 32px;
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+  border-radius: 8px;
+  background: #dfe5ff;
+  color: #3f45a9;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.swap-name-row {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  flex-wrap: wrap;
+}
+
+.swap-name-row strong {
+  color: #282341;
+  font-size: 11px;
+}
+
+.swap-request-id {
+  color: #b0aabd;
+  font-size: 7px;
+  font-weight: 600;
+}
+
+.swap-user-info p {
+  margin: 2px 0 0;
+  color: #777186;
+  font-size: 8px;
+}
+
+.swap-status-badge {
+  flex-shrink: 0;
+  padding: 5px 9px;
+  border-radius: 999px;
+  font-size: 8px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.status-pending {
+  background: #fff7df;
+  color: #b77a00;
+}
+
+.status-accepted {
+  background: #e7fbf2;
+  color: #07855a;
+}
+
+.status-rejected,
+.status-cancelled {
+  background: #fff0f1;
+  color: #cc5360;
+}
+
+.status-completed {
+  background: #f1edff;
+  color: #604bd6;
+}
+
+/* =========================
+   SKILLS EXCHANGE
+========================= */
+
+.swap-skills-box {
+  margin-top: 13px;
+  padding: 10px;
+  display: grid;
+  grid-template-columns: 1fr 34px 1fr;
+  align-items: center;
+  gap: 10px;
+  border-radius: 9px;
+  background: #f0f0ff;
+}
+
+.swap-skill-column {
+  min-width: 0;
+}
+
+.swap-skill-column > span {
+  display: block;
+  margin-bottom: 5px;
+  color: #5c50bb;
+  font-size: 7px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+}
+
+.swap-skill {
+  min-height: 30px;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 7px 9px;
+  border-radius: 6px;
+  background: #ffffff;
+  color: #282341;
+  font-size: 9px;
+  font-weight: 700;
+}
+
+.swap-skill > span {
+  color: #5849dc;
+  font-size: 11px;
+}
+
+.swap-exchange-icon {
+  width: 26px;
+  height: 26px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: #dfe4ff;
+  color: #5545d8;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+/* =========================
+   MESSAGE
+========================= */
+
+.swap-message {
+  margin-top: 10px;
+  padding: 10px 12px;
+  border-left: 3px solid #5a4bdd;
+  border-radius: 4px;
+  background: #f8f7ff;
+  color: #666078;
+  font-size: 9px;
+  line-height: 1.55;
+}
+
+/* =========================
+   CARD BOTTOM
+========================= */
+
+.swap-card-bottom {
+  margin-top: 11px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.swap-request-meta {
+  color: #817b8d;
+  font-size: 8px;
+}
+
+.swap-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 7px;
+  flex-wrap: wrap;
+}
+
+.swap-btn {
+  min-height: 29px;
+  padding: 7px 12px;
+  border: 0;
+  border-radius: 7px;
+  font-size: 9px;
+  font-weight: 800;
+  transition:
+    transform 0.15s ease,
+    box-shadow 0.15s ease;
+}
+
+.swap-btn:hover {
+  transform: translateY(-1px);
+}
+
+.swap-btn-primary {
+  background: #5143db;
+  color: #ffffff;
+  box-shadow: 0 4px 10px rgba(81, 67, 219, 0.18);
+}
+
+.swap-btn-secondary {
+  background: #f1f0fb;
+  color: #5d5870;
+}
+
+.swap-rated {
+  padding: 7px 10px;
+  border-radius: 7px;
+  background: #e9e6ff;
+  color: #5a4bd0;
+  font-size: 9px;
+  font-weight: 800;
+}
+
+/* =========================
+   EMPTY STATE
+========================= */
+
+.swap-empty-state {
+  padding: 40px 20px;
+  border: 1px dashed #dcd8ed;
+  border-radius: 13px;
+  background: #ffffff;
+  text-align: center;
+}
+
+.swap-empty-icon {
+  width: 42px;
+  height: 42px;
+  margin: 0 auto 10px;
+  display: grid;
+  place-items: center;
+  border-radius: 12px;
+  background: #eeebff;
+  color: #5748d9;
+  font-size: 18px;
+}
+
+.swap-empty-state h3 {
+  margin: 0 0 5px;
+  color: #302b49;
+  font-size: 13px;
+}
+
+.swap-empty-state p {
+  margin: 0;
+  color: #8b8596;
+  font-size: 9px;
+}
+
+/* =========================
+   RATING MODAL
+========================= */
+
+.swap-modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: rgba(25, 20, 55, 0.42);
+}
+
+.swap-rating-modal {
+  position: relative;
+  width: min(430px, 100%);
+  padding: 28px;
+  border-radius: 16px;
+  background: #ffffff;
+  box-shadow: 0 20px 60px rgba(30, 25, 80, 0.2);
+}
+
+.swap-modal-close {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  width: 28px;
+  height: 28px;
+  border: 0;
+  border-radius: 50%;
+  background: #f2f0f8;
+  color: #625d70;
+  font-size: 17px;
+}
+
+.swap-rating-modal h2 {
+  margin: 0 0 7px;
+  color: #292442;
+  font-size: 20px;
+}
+
+.swap-rating-modal > p {
+  margin: 0;
+  color: #777186;
+  font-size: 10px;
+  line-height: 1.55;
+}
+
+.swap-stars {
+  display: flex;
+  justify-content: center;
+  gap: 7px;
+  margin: 22px 0;
+}
+
+.swap-stars button {
+  border: 0;
+  background: transparent;
+  color: #d8d4e2;
+  font-size: 29px;
+  line-height: 1;
+}
+
+.swap-stars button.selected {
+  color: #f0a91b;
+}
+
+.swap-rating-modal label {
+  display: block;
+  margin-bottom: 6px;
+  color: #38334f;
+  font-size: 10px;
+  font-weight: 800;
+}
+
+.swap-rating-modal textarea {
+  width: 100%;
+  min-height: 100px;
+  resize: vertical;
+  padding: 10px 11px;
+  border: 1px solid #e2deed;
+  border-radius: 8px;
+  outline: none;
+  color: #302b49;
+  background: #faf9fd;
+  font-size: 10px;
+}
+
+.swap-rating-modal textarea:focus {
+  border-color: #7568e5;
+  box-shadow: 0 0 0 3px rgba(117, 104, 229, 0.1);
+}
+
+.swap-modal-actions {
+  margin-top: 16px;
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+/* =========================
+   RESPONSIVE
+========================= */
+
+@media (max-width: 900px) {
+  .swap-page {
+    padding: 28px 24px 60px;
+  }
+
+  .swap-page-header {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .swap-status-tabs {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .swap-status-tabs button {
+    flex: 1;
+  }
+}
+
+@media (max-width: 650px) {
+  .swap-page {
+    padding: 22px 14px 45px;
+  }
+
+  .swap-page-header h1 {
+    font-size: 25px;
+  }
+
+  .swap-page-header p {
+    font-size: 11px;
+  }
+
+  .swap-request-tabs {
+    overflow-x: auto;
+  }
+
+  .swap-request-tab {
+    min-width: 145px;
+  }
+
+  .swap-section-header {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 5px;
+  }
+
+  .swap-section-header p {
+    font-size: 8px;
+  }
+
+  .swap-card-top {
+    flex-direction: column;
+  }
+
+  .swap-status-badge {
+    align-self: flex-start;
+  }
+
+  .swap-skills-box {
+    grid-template-columns: 1fr;
+    gap: 7px;
+  }
+
+  .swap-exchange-icon {
+    margin: 0 auto;
+    transform: rotate(90deg);
+  }
+
+  .swap-card-bottom {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .swap-actions {
+    justify-content: stretch;
+  }
+
+  .swap-actions .swap-btn {
+    flex: 1;
+  }
+
+  .swap-rating-modal {
+    padding: 24px 18px;
+  }
+}
+
+@media (max-width: 420px) {
+  .swap-status-tabs {
+    gap: 1px;
+    padding: 3px;
+  }
+
+  .swap-status-tabs button {
+    padding: 7px 5px;
+    font-size: 8px;
+  }
+
+  .swap-request-card {
+    padding: 12px;
+  }
+
+  .swap-user-info {
+    align-items: flex-start;
+  }
+
+  .swap-name-row {
+    gap: 4px;
+  }
+
+  .swap-name-row strong {
+    font-size: 10px;
+  }
+
+  .swap-request-id {
+    font-size: 6px;
+  }
+
+  .swap-actions {
+    width: 100%;
+  }
+
+  .swap-actions .swap-btn {
+    width: 100%;
+  }
+
+  .swap-modal-actions {
+    flex-direction: column-reverse;
+  }
+
+  .swap-modal-actions .swap-btn {
+    width: 100%;
+  }
+}
+
+/* =========================
+   SWAP UI SIZE ADJUSTMENT
+   100% ZOOM OPTIMIZATION
+========================= */
+
+.swap-page {
+  padding: 40px 60px 80px;
+}
+
+.swap-page-header {
+  max-width: 1240px;
+  margin-bottom: 30px;
+}
+
+.swap-eyebrow {
+  margin-bottom: 10px;
+  padding: 5px 9px;
+  font-size: 10px;
+}
+
+.swap-page-header h1 {
+  font-size: 36px;
+  margin-bottom: 10px;
+}
+
+.swap-page-header p {
+  max-width: 560px;
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.swap-status-tabs {
+  padding: 5px;
+}
+
+.swap-status-tabs button {
+  padding: 9px 15px;
+  font-size: 11px;
+}
+
+/* Request tabs */
+
+.swap-request-tabs {
+  max-width: 1240px;
+  margin-bottom: 30px;
+  gap: 10px;
+}
+
+.swap-request-tab {
+  min-width: 190px;
+  padding: 12px 14px;
+  gap: 11px;
+}
+
+.swap-tab-icon {
+  width: 34px;
+  height: 34px;
+  font-size: 15px;
+}
+
+.swap-request-tab small {
+  font-size: 8px;
+}
+
+.swap-request-tab strong {
+  font-size: 12px;
+}
+
+.swap-tab-count {
+  min-width: 24px;
+  padding: 4px 7px;
+  font-size: 9px;
+}
+
+/* Sections */
+
+.swap-section {
+  max-width: 1240px;
+  margin-bottom: 42px;
+}
+
+.swap-section-header {
+  margin-bottom: 15px;
+}
+
+.swap-section-header h2 {
+  font-size: 18px;
+}
+
+.swap-section-header h2 span {
+  padding: 4px 8px;
+  font-size: 9px;
+}
+
+.swap-section-header p {
+  font-size: 10px;
+}
+
+/* Cards */
+
+.swap-request-list {
+  gap: 14px;
+}
+
+.swap-request-card {
+  padding: 21px;
+  border-radius: 15px;
+}
+
+.swap-avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  font-size: 13px;
+}
+
+.swap-user-info {
+  gap: 12px;
+}
+
+.swap-name-row strong {
+  font-size: 13px;
+}
+
+.swap-request-id {
+  font-size: 8px;
+}
+
+.swap-user-info p {
+  font-size: 10px;
+  margin-top: 4px;
+}
+
+.swap-status-badge {
+  padding: 7px 11px;
+  font-size: 9px;
+}
+
+/* Skills */
+
+.swap-skills-box {
+  margin-top: 16px;
+  padding: 13px;
+  grid-template-columns: 1fr 42px 1fr;
+  gap: 13px;
+  border-radius: 10px;
+}
+
+.swap-skill-column > span {
+  margin-bottom: 7px;
+  font-size: 8px;
+}
+
+.swap-skill {
+  min-height: 38px;
+  padding: 9px 11px;
+  gap: 8px;
+  border-radius: 7px;
+  font-size: 11px;
+}
+
+.swap-skill > span {
+  font-size: 13px;
+}
+
+.swap-exchange-icon {
+  width: 32px;
+  height: 32px;
+  font-size: 15px;
+}
+
+/* Message */
+
+.swap-message {
+  margin-top: 13px;
+  padding: 12px 14px;
+  font-size: 11px;
+  line-height: 1.6;
+}
+
+/* Bottom */
+
+.swap-card-bottom {
+  margin-top: 14px;
+}
+
+.swap-request-meta {
+  font-size: 9px;
+}
+
+.swap-actions {
+  gap: 8px;
+}
+
+.swap-btn {
+  min-height: 35px;
+  padding: 9px 14px;
+  border-radius: 8px;
+  font-size: 10px;
+}
+
+.swap-rated {
+  padding: 9px 12px;
+  font-size: 10px;
+}
+
+/* Empty */
+
+.swap-empty-state {
+  padding: 55px 20px;
+}
+
+.swap-empty-icon {
+  width: 50px;
+  height: 50px;
+  font-size: 21px;
+}
+
+.swap-empty-state h3 {
+  font-size: 15px;
+}
+
+.swap-empty-state p {
+  font-size: 10px;
+}
+
+/* Rating modal */
+
+.swap-rating-modal {
+  width: min(480px, 100%);
+  padding: 32px;
+}
+
+.swap-rating-modal h2 {
+  font-size: 23px;
+}
+
+.swap-rating-modal > p {
+  font-size: 11px;
+}
+
+.swap-rating-modal label {
+  font-size: 11px;
+}
+
+.swap-rating-modal textarea {
+  font-size: 11px;
+}
+
+.swap-request-tab {
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.swap-request-tab:hover {
+  border-color: #d8d3f5;
+  transform: translateY(-1px);
+}
+
+.swap-request-tab.active {
+  border-color: #7568e5;
+  background: #f8f7ff;
+  box-shadow: 0 3px 10px rgba(81, 67, 219, 0.08);
+}
+
+.swap-request-tab.active .swap-tab-icon {
+  background: #5143db;
+  color: #fff;
+}
+
+.swap-request-tab.active .swap-tab-count {
+  background: #5143db;
+  color: #fff;
+}
+
+.swap-actions .swap-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+
+.swap-btn-primary:hover {
+  background: #4536c9;
+  box-shadow: 0 6px 14px rgba(81, 67, 219, 0.24);
+}
+
+.swap-btn-secondary {
+  border: 1px solid #e4e1ef;
+}
+
+.swap-btn-secondary:hover {
+  background: #e9e7f5;
+  border-color: #d7d3e8;
+}
+
+.swap-rated {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+}
+
+/* Two cards per row */
+.swap-request-list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+
+/* Keep cards equal and properly sized */
+.swap-request-card {
+  min-width: 0;
+  height: 100%;
+}
+
+/* Tablet */
+@media (max-width: 850px) {
+  .swap-request-list {
+    grid-template-columns: 1fr;
+  }
+}
+
+.swap-status-tabs button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+}
+
+.swap-status-tabs button span {
+  min-width: 18px;
+  height: 18px;
+  padding: 2px 5px;
+  display: inline-grid;
+  place-items: center;
+  border-radius: 999px;
+  background: #e7e4f7;
+  color: #625a80;
+  font-size: 9px;
+  font-weight: 800;
+}
+
+.swap-status-tabs button.active span {
+  background: #5143db;
+  color: #fff;
+}

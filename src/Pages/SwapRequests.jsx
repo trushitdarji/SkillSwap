@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { supabase } from "../lib/supabase";
+import "./SwapRequests.css";
 
 function SwapRequests() {
   const [incomingRequests, setIncomingRequests] = useState([]);
@@ -12,6 +13,19 @@ function SwapRequests() {
   const [currentUserId, setCurrentUserId] = useState(null);
   const [profileNames, setProfileNames] = useState({});
   const [skillNames, setSkillNames] = useState({});
+  const [activeFilter, setActiveFilter] = useState("all");
+  const [feedback, setFeedback] = useState("");
+  const allRequests = [...incomingRequests, ...outgoingRequests];
+
+  const requestCounts = {
+    all: allRequests.length,
+    pending: allRequests.filter((request) => request.status === "pending")
+      .length,
+    accepted: allRequests.filter((request) => request.status === "accepted")
+      .length,
+    completed: allRequests.filter((request) => request.status === "completed")
+      .length,
+  };
 
   const getProfileName = async (userId) => {
     const { data, error } = await supabase
@@ -183,6 +197,7 @@ function SwapRequests() {
     setRatedRequests((prev) => [...prev, request.id]);
     setRatingRequest(null);
     setSelectedRating(0);
+    setFeedback("");
   };
 
   useEffect(() => {
@@ -300,137 +315,473 @@ function SwapRequests() {
       : ratingRequest.sender_id
     : null;
 
+  const filteredIncomingRequests =
+    activeFilter === "all"
+      ? incomingRequests
+      : incomingRequests.filter((request) => request.status === activeFilter);
+
+  const filteredOutgoingRequests =
+    activeFilter === "all"
+      ? outgoingRequests
+      : outgoingRequests.filter((request) => request.status === activeFilter);
+
   return (
-    <div>
-      <h1>Swap Requests</h1>
-      <h2>Incoming Requests</h2>
-
-      {incomingRequests.length === 0 ? (
-        <p>No incoming requests.</p>
-      ) : (
-        incomingRequests.map((request) => (
-          <div key={request.id}>
-            <p>From: {profileNames[request.sender_id] || "Loading..."}</p>
-            <p>
-              You offer: {skillNames[request.offered_skill_id] || "Loading..."}
-            </p>
-
-            <p>
-              You want: {skillNames[request.requested_skill_id] || "Loading..."}
-            </p>
-            <p>Request ID: {request.id}</p>
-            <p>Status: {request.status}</p>
-            {request.status === "pending" && (
-              <button type="button" onClick={() => handleAccept(request.id)}>
-                Accept
-              </button>
-            )}
-            {request.status === "pending" && (
-              <button type="button" onClick={() => handleReject(request.id)}>
-                Reject
-              </button>
-            )}
-
-            {request.status === "accepted" &&
-              !request.receiver_completed_at && (
-                <button
-                  type="button"
-                  onClick={() => handleComplete(request.id)}
-                >
-                  Mark as Completed
-                </button>
-              )}
-
-            {request.status === "completed" &&
-              !ratedRequests.includes(request.id) && (
-                <button type="button" onClick={() => setRatingRequest(request)}>
-                  Rate User
-                </button>
-              )}
-
-            {request.message && <p>Message: {request.message}</p>}
-          </div>
-        ))
-      )}
-      <h2>Outgoing Requests</h2>
-
-      {outgoingRequests.length === 0 ? (
-        <p>No outgoing requests.</p>
-      ) : (
-        outgoingRequests.map((request) => (
-          <div key={request.id}>
-            <p>To: {profileNames[request.receiver_id] || "Loading..."}</p>
-            <p>
-              You offer: {skillNames[request.offered_skill_id] || "Loading..."}
-            </p>
-
-            <p>
-              You want: {skillNames[request.requested_skill_id] || "Loading..."}
-            </p>
-            <p>Request ID: {request.id}</p>
-            <p>Status: {request.status}</p>
-            {request.status === "pending" && (
-              <button type="button" onClick={() => handleCancel(request.id)}>
-                Cancel
-              </button>
-            )}
-
-            {request.status === "accepted" && !request.sender_completed_at && (
-              <button type="button" onClick={() => handleComplete(request.id)}>
-                Mark as Completed
-              </button>
-            )}
-
-            {request.status === "completed" &&
-              !ratedRequests.includes(request.id) && (
-                <button type="button" onClick={() => setRatingRequest(request)}>
-                  Rate User
-                </button>
-              )}
-
-            {request.message && <p>Message: {request.message}</p>}
-          </div>
-        ))
-      )}
-      {ratingRequest && (
+    <div className="swap-page">
+      {/* Page Header */}
+      <section className="swap-page-header">
         <div>
-          <h2>Rate User</h2>
+          <span className="swap-eyebrow">PEER EXCHANGE</span>
 
-          <p>Rate: {profileNames[revieweeId] || "User"}</p>
+          <h1>Swap Requests</h1>
 
-          <div>
-            {[1, 2, 3, 4, 5].map((star) => (
-              <button
-                key={star}
-                type="button"
-                onClick={() => setSelectedRating(star)}
-              >
-                {star <= selectedRating ? "★" : "☆"}
-              </button>
-            ))}
-          </div>
+          <p>
+            Coordinate, accept, and rate your collaborative 1-on-1 knowledge
+            trades with fellow campus creators.
+          </p>
+        </div>
 
-          <textarea id="feedback" placeholder="Write your feedback..." />
+        <div className="swap-status-tabs">
+          <button
+            className={activeFilter === "all" ? "active" : ""}
+            onClick={() => setActiveFilter("all")}
+          >
+            All <span>{requestCounts.all}</span>
+          </button>
 
           <button
-            type="button"
-            onClick={() => {
-              const feedback = document.getElementById("feedback").value;
-
-              if (!selectedRating) {
-                setError("Please select a rating.");
-                return;
-              }
-
-              handleSubmitRating(selectedRating, feedback);
-            }}
+            className={activeFilter === "pending" ? "active" : ""}
+            onClick={() => setActiveFilter("pending")}
           >
-            Submit Rating
+            Pending <span>{requestCounts.pending}</span>
           </button>
 
-          <button type="button" onClick={() => setRatingRequest(null)}>
-            Cancel
+          <button
+            className={activeFilter === "accepted" ? "active" : ""}
+            onClick={() => setActiveFilter("accepted")}
+          >
+            Accepted <span>{requestCounts.accepted}</span>
           </button>
+
+          <button
+            className={activeFilter === "completed" ? "active" : ""}
+            onClick={() => setActiveFilter("completed")}
+          >
+            Completed <span>{requestCounts.completed}</span>
+          </button>
+        </div>
+      </section>
+
+      {/* Request Type Tabs */}
+      <div className="swap-request-tabs">
+        <div className="swap-request-tab active">
+          <span className="swap-tab-icon">↙</span>
+          <div>
+            <small>QUEUE</small>
+            <strong>Incoming Requests</strong>
+          </div>
+          <span className="swap-tab-count">{incomingRequests.length}</span>
+        </div>
+
+        <div className="swap-request-tab">
+          <span className="swap-tab-icon">↗</span>
+          <div>
+            <small>SENT</small>
+            <strong>Outgoing Requests</strong>
+          </div>
+          <span className="swap-tab-count">{outgoingRequests.length}</span>
+        </div>
+      </div>
+
+      {/* Incoming Requests */}
+      <section className="swap-section">
+        <div className="swap-section-header">
+          <h2>
+            Incoming Requests
+            <span>
+              {filteredIncomingRequests.length}{" "}
+              {activeFilter === "all" ? "Active" : activeFilter}
+            </span>
+          </h2>
+
+          <p>Peers asking to learn your skills</p>
+        </div>
+
+        {filteredIncomingRequests.length === 0 ? (
+          <div className="swap-empty-state">
+            <div className="swap-empty-icon">↙</div>
+            <h3>No incoming requests yet</h3>
+            <p>New skill swap requests will appear here.</p>
+          </div>
+        ) : (
+          <div className="swap-request-list">
+            {filteredIncomingRequests.map((request) => (
+              <article
+                className={`swap-request-card ${
+                  request.status === "rejected" ? "is-rejected" : ""
+                }`}
+                key={request.id}
+              >
+                {/* Card Top */}
+                <div className="swap-card-top">
+                  <div className="swap-user-info">
+                    <div className="swap-avatar">
+                      {(profileNames[request.sender_id] || "U")
+                        .charAt(0)
+                        .toUpperCase()}
+                    </div>
+
+                    <div>
+                      <div className="swap-name-row">
+                        <strong>
+                          {profileNames[request.sender_id] || "Unknown User"}
+                        </strong>
+
+                        <span className="swap-request-id">
+                          #REQ-{request.id.slice(0, 8)}
+                        </span>
+                      </div>
+
+                      <p>wants to swap skills with you</p>
+                    </div>
+                  </div>
+
+                  <span
+                    className={`swap-status-badge status-${request.status}`}
+                  >
+                    {request.status === "pending" && "● Pending Response"}
+
+                    {request.status === "accepted" && "● Accepted & Active"}
+
+                    {request.status === "rejected" && "⊘ Declined"}
+
+                    {request.status === "cancelled" && "⊘ Cancelled"}
+
+                    {request.status === "completed" && "✓ Completed"}
+                  </span>
+                </div>
+
+                {/* Skill Exchange */}
+                <div className="swap-skills-box">
+                  <div className="swap-skill-column">
+                    <span>
+                      {(
+                        profileNames[request.sender_id] || "USER"
+                      ).toUpperCase()}{" "}
+                      TEACHES YOU
+                    </span>
+
+                    <div className="swap-skill">
+                      <span>✎</span>
+                      {skillNames[request.offered_skill_id] || "Unknown Skill"}
+                    </div>
+                  </div>
+
+                  <div className="swap-exchange-icon">⇄</div>
+
+                  <div className="swap-skill-column">
+                    <span>YOU TEACH</span>
+
+                    <div className="swap-skill">
+                      <span>⌘</span>
+                      {skillNames[request.requested_skill_id] ||
+                        "Unknown Skill"}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Message */}
+                {request.message && (
+                  <div className="swap-message">“{request.message}”</div>
+                )}
+
+                {/* Card Bottom */}
+                <div className="swap-card-bottom">
+                  <span className="swap-request-meta">
+                    ◷ Request #{request.id.slice(0, 8)}
+                  </span>
+
+                  <div className="swap-actions">
+                    {request.status === "pending" && (
+                      <>
+                        <button
+                          className="swap-btn swap-btn-secondary"
+                          onClick={() => handleReject(request.id)}
+                        >
+                          × Reject
+                        </button>
+
+                        <button
+                          className="swap-btn swap-btn-primary"
+                          onClick={() => handleAccept(request.id)}
+                        >
+                          ✓ Accept Swap
+                        </button>
+                      </>
+                    )}
+
+                    {request.status === "accepted" &&
+                      !request.receiver_completed_at && (
+                        <button
+                          className="swap-btn swap-btn-primary"
+                          onClick={() => handleComplete(request.id)}
+                        >
+                          ✓ Mark as Completed
+                        </button>
+                      )}
+
+                    {request.status === "completed" &&
+                      !ratedRequests.includes(request.id) && (
+                        <button
+                          className="swap-btn swap-btn-primary"
+                          onClick={() => {
+                            setRatingRequest(request);
+                            setSelectedRating(0);
+                          }}
+                        >
+                          ☆ Rate User
+                        </button>
+                      )}
+
+                    {request.status === "completed" &&
+                      ratedRequests.includes(request.id) && (
+                        <span className="swap-rated">☆ Rated</span>
+                      )}
+                  </div>
+                </div>
+              </article>
+            ))}
+          </div>
+        )}
+      </section>
+
+      {/* Outgoing Requests */}
+      <section className="swap-section">
+        <div className="swap-section-header">
+          <h2>
+            Outgoing Requests
+            <span>
+              {filteredOutgoingRequests.length}{" "}
+              {activeFilter === "all" ? "Active" : activeFilter}
+            </span>
+          </h2>
+
+          <p>Requests you proposed to peers</p>
+        </div>
+
+        {filteredOutgoingRequests.length === 0 ? (
+          <div className="swap-empty-state">
+            <div className="swap-empty-icon">↗</div>
+            <h3>No outgoing requests yet</h3>
+            <p>Requests you send will appear here.</p>
+          </div>
+        ) : (
+          <div className="swap-request-list">
+            {filteredOutgoingRequests.map((request) => (
+              <article
+                className={`swap-request-card ${
+                  request.status === "rejected" ? "is-rejected" : ""
+                }`}
+                key={request.id}
+              >
+                {/* Card Top */}
+                <div className="swap-card-top">
+                  <div className="swap-user-info">
+                    <div className="swap-avatar">
+                      {(profileNames[request.receiver_id] || "U")
+                        .charAt(0)
+                        .toUpperCase()}
+                    </div>
+
+                    <div>
+                      <div className="swap-name-row">
+                        <strong>
+                          {profileNames[request.receiver_id] || "Unknown User"}
+                        </strong>
+
+                        <span className="swap-request-id">
+                          #REQ-{request.id.slice(0, 8)}
+                        </span>
+                      </div>
+
+                      <p>Request sent by you</p>
+                    </div>
+                  </div>
+
+                  <span
+                    className={`swap-status-badge status-${request.status}`}
+                  >
+                    {request.status === "pending" &&
+                      "● Awaiting Partner Response"}
+
+                    {request.status === "accepted" && "● Request Accepted"}
+
+                    {request.status === "rejected" && "⊘ Declined"}
+
+                    {request.status === "cancelled" && "⊘ Cancelled"}
+
+                    {request.status === "completed" && "✓ Completed"}
+                  </span>
+                </div>
+
+                {/* Skill Exchange */}
+                <div className="swap-skills-box">
+                  <div className="swap-skill-column">
+                    <span>YOU OFFER</span>
+
+                    <div className="swap-skill">
+                      <span>▣</span>
+                      {skillNames[request.offered_skill_id] || "Unknown Skill"}
+                    </div>
+                  </div>
+
+                  <div className="swap-exchange-icon">→</div>
+
+                  <div className="swap-skill-column">
+                    <span>
+                      YOU REQUEST FROM{" "}
+                      {(
+                        profileNames[request.receiver_id] || "USER"
+                      ).toUpperCase()}
+                    </span>
+
+                    <div className="swap-skill">
+                      <span>◉</span>
+                      {skillNames[request.requested_skill_id] ||
+                        "Unknown Skill"}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Message */}
+                {request.message && (
+                  <div className="swap-message">“{request.message}”</div>
+                )}
+
+                {/* Card Bottom */}
+                <div className="swap-card-bottom">
+                  <span className="swap-request-meta">
+                    ◷ Request #{request.id.slice(0, 8)}
+                  </span>
+
+                  <div className="swap-actions">
+                    {request.status === "pending" && (
+                      <button
+                        className="swap-btn swap-btn-secondary"
+                        onClick={() => handleCancel(request.id)}
+                      >
+                        ⊗ Cancel Request
+                      </button>
+                    )}
+
+                    {request.status === "accepted" &&
+                      !request.sender_completed_at && (
+                        <button
+                          className="swap-btn swap-btn-primary"
+                          onClick={() => handleComplete(request.id)}
+                        >
+                          ✓ Mark as Completed
+                        </button>
+                      )}
+
+                    {request.status === "completed" &&
+                      !ratedRequests.includes(request.id) && (
+                        <button
+                          className="swap-btn swap-btn-primary"
+                          onClick={() => {
+                            setRatingRequest(request);
+                            setSelectedRating(0);
+                          }}
+                        >
+                          ☆ Rate User
+                        </button>
+                      )}
+
+                    {request.status === "completed" &&
+                      ratedRequests.includes(request.id) && (
+                        <span className="swap-rated">☆ Rated</span>
+                      )}
+                  </div>
+                </div>
+              </article>
+            ))}
+          </div>
+        )}
+      </section>
+
+      {/* Rating Modal */}
+      {ratingRequest && (
+        <div className="swap-modal-overlay">
+          <div className="swap-rating-modal">
+            <button
+              className="swap-modal-close"
+              onClick={() => {
+                setRatingRequest(null);
+                setSelectedRating(0);
+              }}
+            >
+              ×
+            </button>
+
+            <h2>Rate User</h2>
+
+            <p>
+              How was your skill swap experience with{" "}
+              <strong>
+                {ratingRequest.sender_id === currentUserId
+                  ? profileNames[ratingRequest.receiver_id]
+                  : profileNames[ratingRequest.sender_id]}
+              </strong>
+            </p>
+
+            <div className="swap-stars">
+              {[1, 2, 3, 4, 5].map((star) => (
+                <button
+                  key={star}
+                  type="button"
+                  className={star <= selectedRating ? "selected" : ""}
+                  onClick={() => setSelectedRating(star)}
+                >
+                  ★
+                </button>
+              ))}
+            </div>
+
+            <label htmlFor="feedback">Feedback</label>
+
+            <textarea
+              id="feedback"
+              placeholder="Share your experience..."
+              rows="4"
+              value={feedback}
+              onChange={(event) => setFeedback(event.target.value)}
+            />
+
+            <div className="swap-modal-actions">
+              <button
+                className="swap-btn swap-btn-secondary"
+                onClick={() => {
+                  setRatingRequest(null);
+                  setSelectedRating(0);
+                }}
+              >
+                Cancel
+              </button>
+
+              <button
+                className="swap-btn swap-btn-primary"
+                onClick={() => {
+                  if (!selectedRating) {
+                    setError("Please select a rating.");
+                    return;
+                  }
+
+                  handleSubmitRating(selectedRating, feedback);
+                }}
+              >
+                Submit Rating
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>
