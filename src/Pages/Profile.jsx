@@ -53,6 +53,8 @@ function Profile() {
   const [selectedRequestedSkill, setSelectedRequestedSkill] = useState("");
   const [swapMessage, setSwapMessage] = useState("");
   const [myOfferedSkills, setMyOfferedSkills] = useState([]);
+  const [swapError, setSwapError] = useState("");
+  const [swapSending, setSwapSending] = useState(false);
 
   const handlePhotoSelect = (event) => {
     const file = event.target.files[0];
@@ -407,9 +409,6 @@ function Profile() {
       }
 
       setProfile(profileData);
-      if (profileData.avatar_url) {
-        setProfilePhoto(profileData.avatar_url);
-      }
       setLocation(profileData.location || "");
       setBio(profileData.bio || "");
       setIsPublic(profileData.is_public);
@@ -570,19 +569,48 @@ function Profile() {
 
             <div className="profile-header-info">
               <div className="profile-name-row">
-                <h1>
-                  {profile?.full_name || profile?.username || "SkillSwap User"}
-                </h1>
+                <div className="profile-name-left">
+                  <h1>
+                    {profile?.full_name ||
+                      profile?.username ||
+                      "SkillSwap User"}
+                  </h1>
 
-                <span className="profile-badge">✓ Verified Creator</span>
+                  <div className="profile-name-badges">
+                    <span className="profile-badge">✓ Verified Creator</span>
 
-                {profile?.is_public && (
-                  <span className="profile-badge profile-badge-light">
-                    ◉ Public Profile
-                  </span>
+                    {profile?.is_public && (
+                      <span className="profile-badge profile-badge-light">
+                        ◉ Public Profile
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                {isOwnProfile && (
+                  <div className="profile-photo-editor">
+                    <label className="profile-photo-upload">
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={handlePhotoSelect}
+                      />
+                      Change Photo
+                    </label>
+
+                    {profilePhoto && (
+                      <button
+                        type="button"
+                        className="profile-photo-save"
+                        onClick={handleUploadPhoto}
+                        disabled={photoUploading}
+                      >
+                        {photoUploading ? "Uploading..." : "Upload Photo"}
+                      </button>
+                    )}
+                  </div>
                 )}
               </div>
-
               <p className="profile-username">
                 @{profile?.username || "username"}
               </p>
@@ -873,162 +901,247 @@ function Profile() {
               </aside>
             </div>
             {isOwnProfile && (
-              <>
-                <button
-                  type="button"
-                  onClick={handleAddSkill}
-                  disabled={skillSaving}
-                >
-                  {skillSaving ? "Adding..." : "Add Skill"}
-                </button>
-
-                {skillMessage && <p>{skillMessage}</p>}
-
-                {!selectedCategory ? (
+              <section className="profile-own-editor">
+                <div className="profile-own-editor-header">
                   <div>
-                    <p>Select a category</p>
+                    <h2>Manage Your Skills</h2>
+                    <p>Add skills you can teach or skills you want to learn.</p>
+                  </div>
+                </div>
 
-                    {skillCategories.map((category) => (
+                <div className="profile-add-skill-box">
+                  <h3>Add a Skill</h3>
+                  <p>
+                    Select the type, choose a category, then select one or more
+                    skills.
+                  </p>
+
+                  <select
+                    className="profile-skill-type-select"
+                    value={selectedSkillType}
+                    onChange={(e) => {
+                      setSelectedSkillType(e.target.value);
+                      setSelectedSkills([]);
+                      setSelectedCategory("");
+                      setSkillMessage("");
+                    }}
+                  >
+                    <option value="offer">I can teach</option>
+                    <option value="want">I want to learn</option>
+                  </select>
+
+                  {!selectedCategory ? (
+                    <>
+                      <p className="profile-selected-category">
+                        Choose a category
+                      </p>
+
+                      <div className="profile-skill-categories">
+                        {skillCategories.map((category) => (
+                          <button
+                            key={category.id}
+                            type="button"
+                            className="profile-skill-category-button"
+                            onClick={() => {
+                              setSelectedCategory(category.id);
+                              setSkillMessage("");
+                            }}
+                          >
+                            {category.name}
+                          </button>
+                        ))}
+                      </div>
+                    </>
+                  ) : (
+                    <>
                       <button
-                        key={category.id}
                         type="button"
+                        className="profile-skill-back"
                         onClick={() => {
-                          setSelectedCategory(category.id);
+                          setSelectedCategory("");
+                          setSelectedSkills([]);
                           setSkillMessage("");
                         }}
                       >
-                        {category.name} →
+                        ← Back to Categories
                       </button>
-                    ))}
-                  </div>
-                ) : (
-                  <div>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setSelectedCategory("");
-                        setSkillMessage("");
-                      }}
-                    >
-                      ← Back to Categories
-                    </button>
 
-                    <p>
-                      {
-                        skillCategories.find(
-                          (category) => category.id === selectedCategory,
-                        )?.name
-                      }
-                    </p>
+                      <p className="profile-selected-category">
+                        {
+                          skillCategories.find(
+                            (category) => category.id === selectedCategory,
+                          )?.name
+                        }
+                      </p>
 
-                    {availableSkills
-                      .filter((skill) => skill.parent_id === selectedCategory)
-                      .map((skill) => (
-                        <button
-                          key={skill.id}
-                          type="button"
-                          onClick={() => {
-                            setSelectedSkills((prev) =>
-                              prev.includes(skill.id)
-                                ? prev.filter((id) => id !== skill.id)
-                                : [...prev, skill.id],
+                      <div className="profile-skill-categories">
+                        {availableSkills
+                          .filter(
+                            (skill) => skill.parent_id === selectedCategory,
+                          )
+                          .map((skill) => {
+                            const isSelected = selectedSkills.includes(
+                              skill.id,
                             );
-                            setSkillMessage("");
-                          }}
-                        >
-                          {selectedSkills.includes(skill.id) ? "✓ " : ""}
-                          {skill.name}
-                        </button>
-                      ))}
-                  </div>
-                )}
 
-                <select
-                  value={selectedSkillType}
-                  onChange={(e) => setSelectedSkillType(e.target.value)}
-                >
-                  <option value="offer">I can teach</option>
-                  <option value="want">I want to learn</option>
-                </select>
+                            return (
+                              <button
+                                key={skill.id}
+                                type="button"
+                                className={`profile-skill-option ${
+                                  isSelected ? "selected" : ""
+                                }`}
+                                onClick={() => {
+                                  setSelectedSkills((prev) =>
+                                    prev.includes(skill.id)
+                                      ? prev.filter((id) => id !== skill.id)
+                                      : [...prev, skill.id],
+                                  );
 
-                <textarea
-                  placeholder="Describe this skill"
-                  value={skillDescription}
-                  onChange={(e) => setSkillDescription(e.target.value)}
-                />
-              </>
+                                  setSkillMessage("");
+                                }}
+                              >
+                                {isSelected ? "✓ " : ""}
+                                {skill.name}
+                              </button>
+                            );
+                          })}
+                      </div>
+
+                      {selectedSkills.length > 0 && (
+                        <div className="profile-selected-skills">
+                          {selectedSkills.map((skillId) => {
+                            const skill = availableSkills.find(
+                              (item) => item.id === skillId,
+                            );
+
+                            return (
+                              <span
+                                key={skillId}
+                                className="profile-selected-skill"
+                              >
+                                {skill?.name}
+                              </span>
+                            );
+                          })}
+                        </div>
+                      )}
+
+                      <textarea
+                        className="profile-skill-description"
+                        placeholder="Describe your experience or what you want to learn..."
+                        value={skillDescription}
+                        onChange={(e) => setSkillDescription(e.target.value)}
+                      />
+
+                      <button
+                        type="button"
+                        className="profile-add-skill-button"
+                        onClick={handleAddSkill}
+                        disabled={skillSaving}
+                      >
+                        {skillSaving ? "Adding..." : "Add Selected Skills"}
+                      </button>
+                    </>
+                  )}
+
+                  {skillMessage && (
+                    <p className="profile-skill-message">{skillMessage}</p>
+                  )}
+                </div>
+              </section>
             )}
             {isOwnProfile && (
-              <>
-                <hr />
-
-                <h2>Edit Profile</h2>
-
-                <div>
-                  <label htmlFor="location">Location</label>
-                  <input
-                    id="location"
-                    type="text"
-                    placeholder="Enter your location"
-                    value={location}
-                    onChange={(e) => setLocation(e.target.value)}
-                  />
+              <section className="profile-own-editor">
+                <div className="profile-own-editor-header">
+                  <div>
+                    <h2>Edit Profile</h2>
+                    <p>
+                      Update your profile information and exchange preferences.
+                    </p>
+                  </div>
                 </div>
 
-                <div>
-                  <label htmlFor="bio">Bio</label>
-                  <textarea
-                    id="bio"
-                    placeholder="Tell something about yourself"
-                    value={bio}
-                    onChange={(e) => setBio(e.target.value)}
-                  />
+                <div className="profile-editor-section">
+                  <div className="profile-editor-field">
+                    <label htmlFor="location">Location</label>
+
+                    <input
+                      id="location"
+                      type="text"
+                      placeholder="Enter your location"
+                      value={location}
+                      onChange={(e) => setLocation(e.target.value)}
+                    />
+                  </div>
+
+                  <div className="profile-editor-field">
+                    <label htmlFor="bio">Bio</label>
+
+                    <textarea
+                      id="bio"
+                      placeholder="Tell something about yourself"
+                      value={bio}
+                      onChange={(e) => setBio(e.target.value)}
+                    />
+                  </div>
                 </div>
 
-                <div>
+                <div className="profile-editor-section">
                   <h3>Availability</h3>
 
-                  {availabilityOptions.map((option) => (
-                    <label key={option.value}>
-                      <input
-                        type="checkbox"
-                        value={option.value}
-                        checked={availability.includes(option.value)}
-                        onChange={(e) => {
-                          if (e.target.checked) {
-                            setAvailability((prev) => [...prev, option.value]);
-                          } else {
-                            setAvailability((prev) =>
-                              prev.filter((item) => item !== option.value),
-                            );
-                          }
-                        }}
-                      />
-                      {option.label}
-                    </label>
-                  ))}
+                  <div className="profile-availability-list">
+                    {availabilityOptions.map((option) => (
+                      <label
+                        key={option.value}
+                        className="profile-availability-option"
+                      >
+                        <input
+                          type="checkbox"
+                          value={option.value}
+                          checked={availability.includes(option.value)}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              setAvailability((prev) => [
+                                ...prev,
+                                option.value,
+                              ]);
+                            } else {
+                              setAvailability((prev) =>
+                                prev.filter((item) => item !== option.value),
+                              );
+                            }
+                          }}
+                        />
+
+                        <span>{option.label}</span>
+                      </label>
+                    ))}
+                  </div>
                 </div>
 
-                <div>
-                  <label htmlFor="isPublic">
+                <div className="profile-editor-section">
+                  <label className="profile-visibility-option">
                     <input
                       id="isPublic"
                       type="checkbox"
                       checked={isPublic}
                       onChange={(e) => setIsPublic(e.target.checked)}
                     />
-                    Make my profile public
+
+                    <span>Make my profile public</span>
                   </label>
                 </div>
 
                 <button
                   type="button"
+                  className="profile-editor-save"
                   onClick={handleSaveProfile}
                   disabled={saving}
                 >
                   {saving ? "Saving..." : "Save Profile"}
                 </button>
-              </>
+              </section>
             )}{" "}
           </>
         )}

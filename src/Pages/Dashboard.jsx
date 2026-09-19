@@ -730,7 +730,7 @@ function Dashboard() {
 
         {mobileMenuOpen && (
           <div className="dashboard-mobile-dropdown">
-            <a href="/dashboard">Dashboard</a>
+            <a href="/">Home</a>
             <a href="/browse">Browse</a>
             <a href="/swap-requests">Swap Requests</a>
             <a href="/profile">Profile</a>

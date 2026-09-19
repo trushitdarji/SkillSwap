@@ -8,12 +8,15 @@ function Browse() {
   const [submittedSearch, setSubmittedSearch] = useState("");
   const [availableSkills, setAvailableSkills] = useState([]);
   const [selectedSkill, setSelectedSkill] = useState("");
+  const [selectedAvailability, setSelectedAvailability] = useState("");
   const [searchResults, setSearchResults] = useState([]);
   const [searchLoading, setSearchLoading] = useState(false);
   const [recommendedUsers, setRecommendedUsers] = useState([]);
   const [recommendationLoading, setRecommendationLoading] = useState(false);
   const [recommendationError, setRecommendationError] = useState("");
   const [swapUser, setSwapUser] = useState(null);
+  const [swapError, setSwapError] = useState("");
+  const [swapSending, setSwapSending] = useState(false);
   const [selectedOfferedSkill, setSelectedOfferedSkill] = useState("");
   const [selectedRequestedSkill, setSelectedRequestedSkill] = useState("");
   const [swapMessage, setSwapMessage] = useState("");
@@ -238,9 +241,12 @@ function Browse() {
 
   const handleSendSwapRequest = async () => {
     console.log("Send Swap Request clicked");
+    setSwapError("");
+    setSwapSending(true);
 
     if (!swapUser || !selectedOfferedSkill || !selectedRequestedSkill) {
       console.log("Swap request validation failed");
+      setSwapSending(false);
       return;
     }
 
@@ -268,10 +274,19 @@ function Browse() {
 
     if (error) {
       console.error("Swap request insert error:", error);
+
+      setSwapError(
+        error.code === "23505"
+          ? "You already have a pending swap request for this exchange."
+          : error.message || "Unable to send swap request.",
+      );
+
+      setSwapSending(false);
       return;
     }
 
     console.log("Swap request created:", data);
+    setSwapSending(false);
 
     const { error: activityError } = await supabase
       .from("activity_logs")
@@ -294,6 +309,117 @@ function Browse() {
     setSelectedOfferedSkill("");
     setSelectedRequestedSkill("");
     setSwapMessage("");
+  };
+
+  const handleSearch = async (skillOverride = "") => {
+    setSearchLoading(true);
+
+    const { data: sessionData } = await supabase.auth.getSession();
+    const currentUserId = sessionData.session?.user?.id;
+
+    const selectedSkillName = availableSkills.find(
+      (skill) => skill.id === selectedSkill,
+    )?.name;
+
+    const skillName = skillOverride || selectedSkillName || searchTerm.trim();
+
+    const availabilityFilter = selectedAvailability;
+
+    if (!skillName) {
+      setSearchLoading(false);
+      setSubmittedSearch("");
+      setSearchResults([]);
+      setRecommendationError("Please enter or select a skill to search.");
+      return;
+    }
+
+    setSubmittedSearch(skillName);
+
+    const { data: skillResults, error: skillError } = await supabase
+      .from("user_skills")
+      .select("user_id, skill_id, skill_type")
+      .eq("skill_type", "offer")
+      .eq("moderation_status", "approved");
+
+    if (skillError) {
+      console.error("User search error:", skillError);
+      setSubmittedSearch("");
+      setSearchResults([]);
+      setSearchLoading(false);
+      return;
+    }
+
+    const matchedSkillResults = (skillResults || [])
+      .filter((result) => result.user_id !== currentUserId)
+      .filter((result) => {
+        const skill = availableSkills.find(
+          (item) => item.id === result.skill_id,
+        );
+
+        return skill?.name?.toLowerCase().includes(skillName.toLowerCase());
+      });
+
+    const userIds = [
+      ...new Set(matchedSkillResults.map((result) => result.user_id)),
+    ];
+
+    if (userIds.length === 0) {
+      setSearchResults([]);
+      setSearchLoading(false);
+      return;
+    }
+
+    const { data: profilesData, error: profilesError } = await supabase
+      .from("profiles")
+      .select("id, full_name, username, location, availability, is_public")
+      .in("id", userIds)
+      .eq("is_public", true);
+
+    if (profilesError) {
+      console.error("Search profiles error:", profilesError);
+      setSearchResults([]);
+      setSearchLoading(false);
+      return;
+    }
+
+    const enrichedResults = matchedSkillResults
+      .map((result) => {
+        const skill = availableSkills.find(
+          (item) => item.id === result.skill_id,
+        );
+
+        const profile = (profilesData || []).find(
+          (item) => item.id === result.user_id,
+        );
+
+        if (!profile) {
+          return null;
+        }
+
+        return {
+          ...result,
+          skills: skill || null,
+          profile,
+        };
+      })
+      .filter(Boolean);
+
+    const availabilityFilteredResults = enrichedResults.filter((result) => {
+      if (!availabilityFilter) {
+        return true;
+      }
+
+      return result.profile?.availability?.includes(availabilityFilter);
+    });
+
+    setSearchResults(availabilityFilteredResults);
+    setSearchLoading(false);
+  };
+
+  const handlePopularSkillClick = async (skillName) => {
+    setSelectedSkill("");
+    setSearchTerm(skillName);
+    await handleSearch(skillName);
   };
 
   return (
@@ -425,7 +551,6 @@ function Browse() {
         {mobileMenuOpen && (
           <div className="browse-mobile-dropdown">
             <a href="/">Home</a>
-            <a href="/browse">Browse</a>
             <a href="/swap-requests">Swap Requests</a>
             <a href="/dashboard">Dashboard</a>
             <a href="/profile">View Profile</a>
@@ -488,114 +613,22 @@ function Browse() {
               ))}
             </select>
 
-            <select className="browse-search-select" defaultValue="">
+            <select
+              className="browse-search-select"
+              value={selectedAvailability}
+              onChange={(e) => setSelectedAvailability(e.target.value)}
+            >
               <option value="">Availability</option>
               <option value="weekends">Weekends</option>
               <option value="evenings">Evenings</option>
-              <option value="weekdays">Weekdays</option>
+              <option value="weekday_nights">Weekday evenings</option>
+              <option value="weekday_mornings">Weekday mornings</option>
             </select>
 
             <button
               type="button"
               className="browse-search-button"
-              onClick={async () => {
-                setSearchLoading(true);
-
-                const { data: sessionData } = await supabase.auth.getSession();
-                const currentUserId = sessionData.session?.user?.id;
-
-                const selectedSkillName = availableSkills.find(
-                  (skill) => skill.id === selectedSkill,
-                )?.name;
-
-                const skillName = selectedSkillName || searchTerm.trim();
-
-                if (!skillName) {
-                  setSearchLoading(false);
-                  setSubmittedSearch("");
-                  setSearchResults([]);
-                  return;
-                }
-
-                setSubmittedSearch(skillName);
-
-                const { data: skillResults, error: skillError } = await supabase
-                  .from("user_skills")
-                  .select("user_id, skill_id, skill_type")
-                  .eq("skill_type", "offer")
-                  .eq("moderation_status", "approved");
-
-                if (skillError) {
-                  console.error("User search error:", skillError);
-                  setSearchLoading(false);
-                  return;
-                }
-
-                const matchedSkillResults = (skillResults || [])
-                  .filter((result) => result.user_id !== currentUserId)
-                  .filter((result) => {
-                    const skill = availableSkills.find(
-                      (item) => item.id === result.skill_id,
-                    );
-
-                    return skill?.name
-                      ?.toLowerCase()
-                      .includes(skillName.toLowerCase());
-                  });
-
-                const userIds = [
-                  ...new Set(
-                    matchedSkillResults.map((result) => result.user_id),
-                  ),
-                ];
-
-                if (userIds.length === 0) {
-                  setSearchResults([]);
-                  setSearchLoading(false);
-                  return;
-                }
-
-                const { data: profilesData, error: profilesError } =
-                  await supabase
-                    .from("profiles")
-                    .select(
-                      "id, full_name, username, location, availability, is_public",
-                    )
-                    .in("id", userIds)
-                    .eq("is_public", true);
-
-                if (profilesError) {
-                  console.error("Search profiles error:", profilesError);
-                  setSearchResults([]);
-                  setSearchLoading(false);
-                  return;
-                }
-
-                const enrichedResults = matchedSkillResults
-                  .map((result) => {
-                    const skill = availableSkills.find(
-                      (item) => item.id === result.skill_id,
-                    );
-
-                    const profile = (profilesData || []).find(
-                      (item) => item.id === result.user_id,
-                    );
-
-                    if (!profile) {
-                      return null;
-                    }
-
-                    return {
-                      ...result,
-                      skills: skill || null,
-                      profile,
-                    };
-                  })
-                  .filter(Boolean);
-
-                setSearchResults(enrichedResults);
-                setSearchLoading(false);
-              }}
+              onClick={() => handleSearch()}
             >
               Search
             </button>
@@ -603,13 +636,53 @@ function Browse() {
           <div className="browse-popular-skills">
             <span className="browse-popular-label">Popular:</span>
 
-            <button type="button">Photoshop</button>
-            <button type="button">Figma</button>
-            <button type="button">React</button>
-            <button type="button">Python</button>
-            <button type="button">Digital Photography</button>
-            <button type="button">Excel</button>
-            <button type="button">UX Research</button>
+            <button
+              type="button"
+              onClick={() => handlePopularSkillClick("Photoshop")}
+            >
+              Photoshop
+            </button>
+            <button
+              type="button"
+              onClick={() => handlePopularSkillClick("Figma")}
+            >
+              Figma
+            </button>
+
+            <button
+              type="button"
+              onClick={() => handlePopularSkillClick("React")}
+            >
+              React
+            </button>
+
+            <button
+              type="button"
+              onClick={() => handlePopularSkillClick("Python")}
+            >
+              Python
+            </button>
+
+            <button
+              type="button"
+              onClick={() => handlePopularSkillClick("Digital Photography")}
+            >
+              Digital Photography
+            </button>
+
+            <button
+              type="button"
+              onClick={() => handlePopularSkillClick("Excel")}
+            >
+              Excel
+            </button>
+
+            <button
+              type="button"
+              onClick={() => handlePopularSkillClick("UX Research")}
+            >
+              UX Research
+            </button>
           </div>
 
           {submittedSearch && <p>Searching for: {submittedSearch}</p>}
@@ -866,6 +939,10 @@ function Browse() {
                   <span>100% free peer-to-peer skill exchange</span>
                 </div>
 
+                {swapError && (
+                  <div className="browse-swap-error">{swapError}</div>
+                )}
+
                 <div className="browse-swap-message">
                   <div className="browse-swap-message-header">
                     <label>PERSONAL NOTE</label>
@@ -912,9 +989,13 @@ function Browse() {
                     type="button"
                     className="browse-modal-send"
                     onClick={handleSendSwapRequest}
-                    disabled={!selectedOfferedSkill || !selectedRequestedSkill}
+                    disabled={
+                      !selectedOfferedSkill ||
+                      !selectedRequestedSkill ||
+                      swapSending
+                    }
                   >
-                    Send Swap Request
+                    {swapSending ? "Sending..." : "Send Swap Request"}
                   </button>
                 </div>
               </div>
@@ -1010,6 +1091,30 @@ function Browse() {
                         onClick={() => navigate(`/profile/${result.user_id}`)}
                       >
                         View Profile
+                      </button>
+                      <button
+                        type="button"
+                        className="browse-swap-button browse-result-swap-button"
+                        onClick={() => {
+                          const resultUser = {
+                            user_id: result.user_id,
+                            profile: result.profile,
+                            offers: result.skills?.name
+                              ? [result.skills.name]
+                              : [],
+                            offerSkillIds: result.skills?.id
+                              ? [result.skills.id]
+                              : [],
+                          };
+
+                          setSwapUser(resultUser);
+                          setSelectedOfferedSkill("");
+                          setSelectedRequestedSkill("");
+                          setSwapMessage("");
+                          setSwapError("");
+                        }}
+                      >
+                        Request Swap
                       </button>
                     </article>
                   ))}
