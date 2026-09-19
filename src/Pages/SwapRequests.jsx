@@ -16,6 +16,11 @@ function SwapRequests() {
   const [activeFilter, setActiveFilter] = useState("all");
   const [feedback, setFeedback] = useState("");
   const allRequests = [...incomingRequests, ...outgoingRequests];
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [currentUserProfile, setCurrentUserProfile] = useState(null);
+  const [notifications, setNotifications] = useState([]);
+  const [unreadNotificationCount, setUnreadNotificationCount] = useState(0);
+  const [notificationOpen, setNotificationOpen] = useState(false);
 
   const requestCounts = {
     all: allRequests.length,
@@ -217,6 +222,43 @@ function SwapRequests() {
       const currentUserId = sessionData.session.user.id;
       setCurrentUserId(currentUserId);
 
+      const { data: userProfile, error: userProfileError } = await supabase
+        .from("profiles")
+        .select("full_name, username, avatar_url")
+        .eq("id", currentUserId)
+        .single();
+
+      if (userProfileError) {
+        setError(userProfileError.message);
+        setLoading(false);
+        return;
+      }
+
+      setCurrentUserProfile(userProfile);
+
+      const { data: notificationData, error: notificationError } =
+        await supabase
+          .from("notifications")
+          .select(
+            "id, type, title, message, created_at, is_read, is_announcement",
+          )
+          .eq("user_id", currentUserId)
+          .order("created_at", { ascending: false })
+          .limit(20);
+
+      if (notificationError) {
+        setError(notificationError.message);
+        setLoading(false);
+        return;
+      }
+
+      setNotifications(notificationData || []);
+
+      setUnreadNotificationCount(
+        (notificationData || []).filter((notification) => !notification.is_read)
+          .length,
+      );
+
       const { data: existingRatings, error: ratingsError } = await supabase
         .from("ratings")
         .select("swap_request_id")
@@ -327,6 +369,173 @@ function SwapRequests() {
 
   return (
     <div className="swap-page">
+      <nav className="dashboard-navbar">
+        <button
+          type="button"
+          className="dashboard-mobile-menu"
+          aria-label="Open navigation menu"
+          onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+        >
+          ☰
+        </button>
+
+        <a href="/" className="dashboard-navbar-logo">
+          <span className="dashboard-logo-mark">S</span>
+          <span>SkillSwap</span>
+        </a>
+
+        <div className="dashboard-navbar-links">
+          <a href="/dashboard">Home</a>
+          <a href="/browse">Browse</a>
+
+          <a href="/swap-requests" className="active">
+            Swap Requests
+          </a>
+
+          <a href="/profile">Profile</a>
+        </div>
+
+        {mobileMenuOpen && (
+          <div className="dashboard-mobile-dropdown">
+            <a href="/dashboard">Home</a>
+            <a href="/browse">Browse</a>
+            <a href="/swap-requests">Swap Requests</a>
+            <a href="/profile">Profile</a>
+          </div>
+        )}
+
+        <div className="dashboard-navbar-profile">
+          <div className="dashboard-notification-wrapper">
+            <button
+              type="button"
+              className="dashboard-notification"
+              onClick={() => setNotificationOpen(!notificationOpen)}
+              aria-label="Notifications"
+            >
+              🔔
+              {unreadNotificationCount > 0 && (
+                <span className="dashboard-notification-badge">
+                  {unreadNotificationCount > 9 ? "9+" : unreadNotificationCount}
+                </span>
+              )}
+            </button>
+
+            {notificationOpen && (
+              <div className="dashboard-notification-dropdown">
+                <div className="dashboard-notification-header">
+                  <strong>Notifications</strong>
+
+                  <span>{unreadNotificationCount} unread</span>
+                </div>
+
+                {notifications.length === 0 ? (
+                  <div className="dashboard-notification-empty">
+                    No notifications
+                  </div>
+                ) : (
+                  <div className="dashboard-notification-list">
+                    {notifications.map((notification) => (
+                      <div
+                        key={notification.id}
+                        className={`dashboard-notification-item ${
+                          !notification.is_read ? "unread" : ""
+                        }`}
+                        onClick={async () => {
+                          if (notification.is_read) {
+                            return;
+                          }
+
+                          const { error } = await supabase
+                            .from("notifications")
+                            .update({ is_read: true })
+                            .eq("id", notification.id)
+                            .eq("user_id", currentUserId);
+
+                          if (error) {
+                            console.error(
+                              "Mark notification as read error:",
+                              error,
+                            );
+                            return;
+                          }
+
+                          setNotifications((currentNotifications) =>
+                            currentNotifications.map((item) =>
+                              item.id === notification.id
+                                ? { ...item, is_read: true }
+                                : item,
+                            ),
+                          );
+
+                          setUnreadNotificationCount((count) =>
+                            Math.max(0, count - 1),
+                          );
+                        }}
+                      >
+                        <div className="dashboard-notification-item-icon">
+                          {notification.is_announcement
+                            ? "📢"
+                            : notification.type === "swap_request"
+                              ? "↔"
+                              : notification.type === "swap_accepted"
+                                ? "✓"
+                                : notification.type === "swap_rejected"
+                                  ? "✕"
+                                  : notification.type === "swap_cancelled"
+                                    ? "↩"
+                                    : notification.type === "swap_completed"
+                                      ? "🤝"
+                                      : notification.type === "rating_received"
+                                        ? "⭐"
+                                        : "🔔"}
+                        </div>
+
+                        <div className="dashboard-notification-item-content">
+                          <strong>{notification.title}</strong>
+
+                          <p>{notification.message}</p>
+
+                          <small>
+                            {new Date(notification.created_at).toLocaleString()}
+                          </small>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+
+          <a href="/profile" className="dashboard-user">
+            <div className="dashboard-user-info">
+              <strong>
+                {currentUserProfile?.full_name ||
+                  currentUserProfile?.username ||
+                  "SkillSwap User"}
+              </strong>
+              <span>View Profile</span>
+            </div>
+
+            <span className="dashboard-user-avatar">
+              {currentUserProfile?.avatar_url ? (
+                <img
+                  src={currentUserProfile.avatar_url}
+                  alt={currentUserProfile.full_name || "Profile"}
+                />
+              ) : (
+                (
+                  currentUserProfile?.full_name ||
+                  currentUserProfile?.username ||
+                  "U"
+                )
+                  .charAt(0)
+                  .toUpperCase()
+              )}
+            </span>
+          </a>
+        </div>
+      </nav>
       {/* Page Header */}
       <section className="swap-page-header">
         <div>
