@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { supabase } from "../lib/supabase";
 import { useNavigate } from "react-router-dom";
+import "./Browse.css";
 
 function Browse() {
   const [searchTerm, setSearchTerm] = useState("");
@@ -17,6 +18,11 @@ function Browse() {
   const [selectedRequestedSkill, setSelectedRequestedSkill] = useState("");
   const [swapMessage, setSwapMessage] = useState("");
   const [myOfferedSkills, setMyOfferedSkills] = useState([]);
+  const [currentUserProfile, setCurrentUserProfile] = useState(null);
+  const [notifications, setNotifications] = useState([]);
+  const [unreadNotificationCount, setUnreadNotificationCount] = useState(0);
+  const [notificationOpen, setNotificationOpen] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   const navigate = useNavigate();
 
@@ -46,6 +52,39 @@ function Browse() {
       if (!currentUserId) {
         setRecommendationLoading(false);
         return;
+      }
+
+      const { data: userProfile, error: userProfileError } = await supabase
+        .from("profiles")
+        .select("full_name, username, avatar_url")
+        .eq("id", currentUserId)
+        .single();
+
+      if (userProfileError) {
+        console.error("Current profile fetch error:", userProfileError);
+      } else {
+        setCurrentUserProfile(userProfile);
+      }
+
+      const { data: notificationData, error: notificationError } =
+        await supabase
+          .from("notifications")
+          .select(
+            "id, type, title, message, created_at, is_read, is_announcement",
+          )
+          .eq("user_id", currentUserId)
+          .order("created_at", { ascending: false })
+          .limit(20);
+
+      if (notificationError) {
+        console.error("Notifications fetch error:", notificationError);
+      } else {
+        setNotifications(notificationData || []);
+        setUnreadNotificationCount(
+          (notificationData || []).filter(
+            (notification) => !notification.is_read,
+          ).length,
+        );
       }
 
       const { data: mySkills, error: mySkillsError } = await supabase
@@ -169,6 +208,34 @@ function Browse() {
     fetchBrowseData();
   }, []);
 
+  const handleNotificationClick = async (notification) => {
+    if (notification.is_read) return;
+
+    const { data: sessionData } = await supabase.auth.getSession();
+    const currentUserId = sessionData.session?.user?.id;
+
+    if (!currentUserId) return;
+
+    const { error } = await supabase
+      .from("notifications")
+      .update({ is_read: true })
+      .eq("id", notification.id)
+      .eq("user_id", currentUserId);
+
+    if (error) {
+      console.error("Mark notification as read error:", error);
+      return;
+    }
+
+    setNotifications((currentNotifications) =>
+      currentNotifications.map((item) =>
+        item.id === notification.id ? { ...item, is_read: true } : item,
+      ),
+    );
+
+    setUnreadNotificationCount((count) => Math.max(0, count - 1));
+  };
+
   const handleSendSwapRequest = async () => {
     console.log("Send Swap Request clicked");
 
@@ -230,225 +297,535 @@ function Browse() {
   };
 
   return (
-    <div>
-      <h1>Browse Skills</h1>
-      <p>Find people to swap skills with.</p>
+    <div className="browse-page">
+      <nav className="browse-navbar">
+        <a href="/" className="browse-navbar-logo">
+          <span className="browse-navbar-logo-icon">S</span>
+          <span>SkillSwap</span>
+        </a>
 
-      <div>
-        <input
-          type="text"
-          placeholder="Search by skill..."
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-        />
+        <div className="browse-navbar-links">
+          <a href="/">Home</a>
+          <a href="/browse" className="active">
+            Browse
+          </a>
+          <a href="/swap-requests">Swap Requests</a>
+          <a href="/dashboard">Dashboard</a>
+        </div>
 
-        <select
-          value={selectedSkill}
-          onChange={(e) => setSelectedSkill(e.target.value)}
-        >
-          <option value="">Select a skill</option>
+        <div className="browse-navbar-profile">
+          <div className="browse-notification-wrapper">
+            <button
+              type="button"
+              className="browse-notification"
+              onClick={() => setNotificationOpen((current) => !current)}
+              aria-label="Notifications"
+            >
+              🔔
+              {unreadNotificationCount > 0 && (
+                <span className="browse-notification-badge">
+                  {unreadNotificationCount > 9 ? "9+" : unreadNotificationCount}
+                </span>
+              )}
+            </button>
 
-          {availableSkills.map((skill) => (
-            <option key={skill.id} value={skill.id}>
-              {skill.name}
-            </option>
-          ))}
-        </select>
+            {notificationOpen && (
+              <div className="browse-notification-dropdown">
+                <div className="browse-notification-header">
+                  <strong>Notifications</strong>
+                  <span>{unreadNotificationCount} unread</span>
+                </div>
+
+                {notifications.length === 0 ? (
+                  <div className="browse-notification-empty">
+                    No notifications
+                  </div>
+                ) : (
+                  <div className="browse-notification-list">
+                    {notifications.map((notification) => (
+                      <button
+                        key={notification.id}
+                        type="button"
+                        className={`browse-notification-item ${
+                          !notification.is_read ? "unread" : ""
+                        }`}
+                        onClick={() => handleNotificationClick(notification)}
+                      >
+                        <span className="browse-notification-icon">
+                          {notification.is_announcement
+                            ? "📢"
+                            : notification.type === "swap_request"
+                              ? "↔"
+                              : notification.type === "swap_accepted"
+                                ? "✓"
+                                : notification.type === "swap_rejected"
+                                  ? "✕"
+                                  : notification.type === "swap_cancelled"
+                                    ? "↩"
+                                    : notification.type === "swap_completed"
+                                      ? "🤝"
+                                      : notification.type === "rating_received"
+                                        ? "⭐"
+                                        : "🔔"}
+                        </span>
+
+                        <span className="browse-notification-content">
+                          <strong>{notification.title}</strong>
+                          <span>{notification.message}</span>
+                          <small>
+                            {new Date(notification.created_at).toLocaleString()}
+                          </small>
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+
+          <a href="/profile" className="browse-navbar-user">
+            <span className="browse-navbar-user-info">
+              <strong>
+                {currentUserProfile?.full_name ||
+                  currentUserProfile?.username ||
+                  "SkillSwap User"}
+              </strong>
+              <span>View Profile</span>
+            </span>
+
+            <span className="browse-navbar-avatar">
+              {currentUserProfile?.avatar_url ? (
+                <img
+                  src={currentUserProfile.avatar_url}
+                  alt={currentUserProfile.full_name || "Profile"}
+                />
+              ) : (
+                (
+                  currentUserProfile?.full_name ||
+                  currentUserProfile?.username ||
+                  "U"
+                )
+                  .charAt(0)
+                  .toUpperCase()
+              )}
+            </span>
+          </a>
+        </div>
 
         <button
           type="button"
-          onClick={async () => {
-            setSearchLoading(true);
-
-            const { data: sessionData } = await supabase.auth.getSession();
-            const currentUserId = sessionData.session?.user?.id;
-
-            const selectedSkillName = availableSkills.find(
-              (skill) => skill.id === selectedSkill,
-            )?.name;
-
-            const skillName = selectedSkillName || searchTerm.trim();
-
-            if (!skillName) {
-              setSearchLoading(false);
-              setSubmittedSearch("");
-              setSearchResults([]);
-              return;
-            }
-
-            setSubmittedSearch(skillName);
-
-            const { data: skillResults, error: skillError } = await supabase
-              .from("user_skills")
-              .select("user_id, skill_id, skill_type")
-              .eq("skill_type", "offer")
-              .eq("moderation_status", "approved");
-
-            if (skillError) {
-              console.error("User search error:", skillError);
-              setSearchLoading(false);
-              return;
-            }
-
-            const matchedSkillResults = (skillResults || [])
-              .filter((result) => result.user_id !== currentUserId)
-              .filter((result) => {
-                const skill = availableSkills.find(
-                  (item) => item.id === result.skill_id,
-                );
-
-                return skill?.name
-                  ?.toLowerCase()
-                  .includes(skillName.toLowerCase());
-              });
-
-            const userIds = [
-              ...new Set(matchedSkillResults.map((result) => result.user_id)),
-            ];
-
-            if (userIds.length === 0) {
-              setSearchResults([]);
-              setSearchLoading(false);
-              return;
-            }
-
-            const { data: profilesData, error: profilesError } = await supabase
-              .from("profiles")
-              .select(
-                "id, full_name, username, location, availability, is_public",
-              )
-              .in("id", userIds)
-              .eq("is_public", true);
-
-            if (profilesError) {
-              console.error("Search profiles error:", profilesError);
-              setSearchResults([]);
-              setSearchLoading(false);
-              return;
-            }
-
-            const enrichedResults = matchedSkillResults
-              .map((result) => {
-                const skill = availableSkills.find(
-                  (item) => item.id === result.skill_id,
-                );
-
-                const profile = (profilesData || []).find(
-                  (item) => item.id === result.user_id,
-                );
-
-                if (!profile) {
-                  return null;
-                }
-
-                return {
-                  ...result,
-                  skills: skill || null,
-                  profile,
-                };
-              })
-              .filter(Boolean);
-
-            setSearchResults(enrichedResults);
-            setSearchLoading(false);
-          }}
+          className="browse-mobile-menu"
+          onClick={() => setMobileMenuOpen((current) => !current)}
+          aria-label="Open menu"
         >
-          Search
+          ☰
         </button>
 
-        {submittedSearch && <p>Searching for: {submittedSearch}</p>}
+        {mobileMenuOpen && (
+          <div className="browse-mobile-dropdown">
+            <a href="/">Home</a>
+            <a href="/browse">Browse</a>
+            <a href="/swap-requests">Swap Requests</a>
+            <a href="/dashboard">Dashboard</a>
+            <a href="/profile">View Profile</a>
+          </div>
+        )}
+      </nav>
 
-        <div>
-          <h2>Recommended Users</h2>
+      <main className="browse-content">
+        <section className="browse-hero">
+          <div className="browse-hero-copy">
+            <div className="browse-hero-tags">
+              <span>✦ DISCOVER SKILLS</span>
+              <span>Peer-to-Peer Exchange</span>
+            </div>
 
-          {recommendationLoading ? (
-            <p>Loading recommendations...</p>
-          ) : recommendationError ? (
-            <p>{recommendationError}</p>
-          ) : recommendedUsers.length === 0 ? (
-            <p>No recommendations available.</p>
-          ) : (
+            <h1>Find someone who can teach you.</h1>
+
+            <p>
+              Explore people with skills you want to learn and discover
+              meaningful, reciprocal skill exchanges across campuses and
+              creative hubs.
+            </p>
+          </div>
+
+          <div className="browse-member-info">
+            <div className="browse-member-avatars">
+              <span>AM</span>
+              <span>PS</span>
+              <span>MP</span>
+            </div>
+
             <div>
-              {recommendedUsers.map((user) => (
-                <div key={user.user_id}>
-                  <h3>
-                    {user.profile?.full_name ||
-                      user.profile?.username ||
-                      "Unknown User"}
-                  </h3>
+              <strong>1,480+ Members</strong>
+              <small>Active this week</small>
+            </div>
+          </div>
+        </section>
 
-                  <p>Username: @{user.profile?.username || "N/A"}</p>
+        <div className="browse-search-card">
+          <div className="browse-search-row">
+            <input
+              className="browse-search-input"
+              type="text"
+              placeholder="Search by skill..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+            />
 
-                  <p>Location: {user.profile?.location || "Not provided"}</p>
+            <select
+              className="browse-search-select"
+              value={selectedSkill}
+              onChange={(e) => setSelectedSkill(e.target.value)}
+            >
+              <option value="">Select a skill</option>
 
-                  <p>
-                    Availability:{" "}
-                    {user.profile?.availability?.length > 0
-                      ? user.profile.availability
+              {availableSkills.map((skill) => (
+                <option key={skill.id} value={skill.id}>
+                  {skill.name}
+                </option>
+              ))}
+            </select>
+
+            <select className="browse-search-select" defaultValue="">
+              <option value="">Availability</option>
+              <option value="weekends">Weekends</option>
+              <option value="evenings">Evenings</option>
+              <option value="weekdays">Weekdays</option>
+            </select>
+
+            <button
+              type="button"
+              className="browse-search-button"
+              onClick={async () => {
+                setSearchLoading(true);
+
+                const { data: sessionData } = await supabase.auth.getSession();
+                const currentUserId = sessionData.session?.user?.id;
+
+                const selectedSkillName = availableSkills.find(
+                  (skill) => skill.id === selectedSkill,
+                )?.name;
+
+                const skillName = selectedSkillName || searchTerm.trim();
+
+                if (!skillName) {
+                  setSearchLoading(false);
+                  setSubmittedSearch("");
+                  setSearchResults([]);
+                  return;
+                }
+
+                setSubmittedSearch(skillName);
+
+                const { data: skillResults, error: skillError } = await supabase
+                  .from("user_skills")
+                  .select("user_id, skill_id, skill_type")
+                  .eq("skill_type", "offer")
+                  .eq("moderation_status", "approved");
+
+                if (skillError) {
+                  console.error("User search error:", skillError);
+                  setSearchLoading(false);
+                  return;
+                }
+
+                const matchedSkillResults = (skillResults || [])
+                  .filter((result) => result.user_id !== currentUserId)
+                  .filter((result) => {
+                    const skill = availableSkills.find(
+                      (item) => item.id === result.skill_id,
+                    );
+
+                    return skill?.name
+                      ?.toLowerCase()
+                      .includes(skillName.toLowerCase());
+                  });
+
+                const userIds = [
+                  ...new Set(
+                    matchedSkillResults.map((result) => result.user_id),
+                  ),
+                ];
+
+                if (userIds.length === 0) {
+                  setSearchResults([]);
+                  setSearchLoading(false);
+                  return;
+                }
+
+                const { data: profilesData, error: profilesError } =
+                  await supabase
+                    .from("profiles")
+                    .select(
+                      "id, full_name, username, location, availability, is_public",
+                    )
+                    .in("id", userIds)
+                    .eq("is_public", true);
+
+                if (profilesError) {
+                  console.error("Search profiles error:", profilesError);
+                  setSearchResults([]);
+                  setSearchLoading(false);
+                  return;
+                }
+
+                const enrichedResults = matchedSkillResults
+                  .map((result) => {
+                    const skill = availableSkills.find(
+                      (item) => item.id === result.skill_id,
+                    );
+
+                    const profile = (profilesData || []).find(
+                      (item) => item.id === result.user_id,
+                    );
+
+                    if (!profile) {
+                      return null;
+                    }
+
+                    return {
+                      ...result,
+                      skills: skill || null,
+                      profile,
+                    };
+                  })
+                  .filter(Boolean);
+
+                setSearchResults(enrichedResults);
+                setSearchLoading(false);
+              }}
+            >
+              Search
+            </button>
+          </div>
+          <div className="browse-popular-skills">
+            <span className="browse-popular-label">Popular:</span>
+
+            <button type="button">Photoshop</button>
+            <button type="button">Figma</button>
+            <button type="button">React</button>
+            <button type="button">Python</button>
+            <button type="button">Digital Photography</button>
+            <button type="button">Excel</button>
+            <button type="button">UX Research</button>
+          </div>
+
+          {submittedSearch && <p>Searching for: {submittedSearch}</p>}
+
+          <section className="browse-recommendations">
+            <div className="browse-section-heading">
+              <div>
+                <span className="browse-section-eyebrow">FOR YOU</span>
+                <h2>Recommended for you</h2>
+                <p>People whose skills match what you want to learn.</p>
+              </div>
+            </div>
+
+            {recommendationLoading ? (
+              <div className="browse-state-card">
+                <p>Loading recommendations...</p>
+              </div>
+            ) : recommendationError ? (
+              <div className="browse-state-card">
+                <p>{recommendationError}</p>
+              </div>
+            ) : recommendedUsers.length === 0 ? (
+              <div className="browse-state-card">
+                <p>No recommendations available.</p>
+              </div>
+            ) : (
+              <div className="browse-recommendation-grid">
+                {recommendedUsers.map((user) => (
+                  <article
+                    className="browse-recommendation-card"
+                    key={user.user_id}
+                  >
+                    <div className="browse-card-top">
+                      <div className="browse-profile-avatar">
+                        {(
+                          user.profile?.full_name ||
+                          user.profile?.username ||
+                          "U"
+                        )
+                          .charAt(0)
+                          .toUpperCase()}
+                      </div>
+
+                      <span className="browse-match-badge">
+                        {user.matchScore} Match
+                      </span>
+                    </div>
+
+                    <div className="browse-profile-info">
+                      <h3>
+                        {user.profile?.full_name ||
+                          user.profile?.username ||
+                          "Unknown User"}
+                      </h3>
+
+                      <span className="browse-username">
+                        @{user.profile?.username || "N/A"}
+                      </span>
+
+                      <span className="browse-location">
+                        📍 {user.profile?.location || "Location not provided"}
+                      </span>
+                    </div>
+
+                    <div className="browse-availability">
+                      <span>●</span>
+                      {user.profile?.availability?.length > 0
+                        ? user.profile.availability
+                            .map((value) => {
+                              const labels = {
+                                weekends: "Weekends",
+                                weekday_nights: "Mon–Sat evenings",
+                                evenings: "Weekday evenings",
+                                weekday_mornings: "Weekday mornings",
+                              };
+
+                              return labels[value] || value;
+                            })
+                            .join(", ")
+                        : "Availability not provided"}
+                    </div>
+
+                    <div className="browse-skill-exchange">
+                      <div>
+                        <small>CAN TEACH</small>
+                        <p>
+                          {user.offers.length > 0
+                            ? user.offers.slice(0, 2).join(", ")
+                            : "No skills listed"}
+                        </p>
+                      </div>
+
+                      <div>
+                        <small>WANTS TO LEARN</small>
+                        <p>
+                          {user.wants.length > 0
+                            ? user.wants.slice(0, 2).join(", ")
+                            : "No skills listed"}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="browse-card-actions">
+                      <button
+                        type="button"
+                        className="browse-profile-button"
+                        onClick={() => navigate(`/profile/${user.user_id}`)}
+                      >
+                        View Profile
+                      </button>
+
+                      <button
+                        type="button"
+                        className="browse-swap-button"
+                        onClick={() => {
+                          setSwapUser(user);
+                          setSelectedOfferedSkill("");
+                          setSelectedRequestedSkill("");
+                          setSwapMessage("");
+                        }}
+                      >
+                        Request Swap
+                      </button>
+                    </div>
+                  </article>
+                ))}
+              </div>
+            )}
+          </section>
+
+          {swapUser && (
+            <div
+              className="browse-modal-overlay"
+              onClick={() => setSwapUser(null)}
+            >
+              <div
+                className="browse-swap-modal"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <div className="browse-modal-header">
+                  <div>
+                    <span className="browse-section-eyebrow">
+                      FREE PEER EXCHANGE
+                    </span>
+
+                    <h2>Request a Skill Swap</h2>
+
+                    <p>
+                      Send a request to exchange skills and learn from each
+                      other.
+                    </p>
+                  </div>
+
+                  <button
+                    type="button"
+                    className="browse-modal-close"
+                    onClick={() => setSwapUser(null)}
+                    aria-label="Close"
+                  >
+                    ×
+                  </button>
+                </div>
+
+                <div className="browse-swap-user">
+                  <div className="browse-swap-user-avatar">
+                    {(
+                      swapUser.profile?.full_name ||
+                      swapUser.profile?.username ||
+                      "U"
+                    )
+                      .charAt(0)
+                      .toUpperCase()}
+                  </div>
+
+                  <div className="browse-swap-user-info">
+                    <strong>
+                      {swapUser.profile?.full_name ||
+                        swapUser.profile?.username ||
+                        "SkillSwap User"}
+                    </strong>
+
+                    <span>
+                      @{swapUser.profile?.username || "N/A"}
+                      {swapUser.profile?.location
+                        ? ` • ${swapUser.profile.location}`
+                        : ""}
+                    </span>
+                  </div>
+
+                  <span className="browse-swap-availability">
+                    {swapUser.profile?.availability?.length > 0
+                      ? swapUser.profile.availability
                           .map((value) => {
                             const labels = {
                               weekends: "Weekends",
-                              weekday_nights: "Monday–Saturday, 8 PM–10 PM",
-                              evenings: "Monday–Friday, 6 PM–8 PM",
-                              weekday_mornings: "Monday–Friday, 7 AM–9 AM",
+                              weekday_nights: "Mon–Sat evenings",
+                              evenings: "Weekday evenings",
+                              weekday_mornings: "Weekday mornings",
                             };
 
                             return labels[value] || value;
                           })
                           .join(", ")
-                      : "Not provided"}
-                  </p>
-
-                  <p>
-                    Offers:{" "}
-                    {user.offers.length > 0
-                      ? user.offers.join(", ")
-                      : "No skills listed"}
-                  </p>
-
-                  <p>
-                    Wants:{" "}
-                    {user.wants.length > 0
-                      ? user.wants.join(", ")
-                      : "No skills listed"}
-                  </p>
-
-                  <p>Match Score: {user.matchScore}</p>
-                  <button onClick={() => navigate(`/profile/${user.user_id}`)}>
-                    View Profile
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setSwapUser(user);
-                      setSelectedOfferedSkill("");
-                      setSelectedRequestedSkill("");
-                      setSwapMessage("");
-                    }}
-                  >
-                    Request Swap
-                  </button>
+                      : "Availability not provided"}
+                  </span>
                 </div>
-              ))}
-              {swapUser && (
-                <div>
-                  <h2>Request Swap</h2>
 
-                  <h3>
-                    Requesting swap with:{" "}
-                    {swapUser.profile?.full_name ||
-                      swapUser.profile?.username ||
-                      "Unknown User"}
-                  </h3>
-
-                  <div>
-                    <label>Skill I will offer</label>
+                <div className="browse-swap-fields">
+                  <div className="browse-swap-field">
+                    <label>YOU OFFER</label>
 
                     <select
                       value={selectedOfferedSkill}
                       onChange={(e) => setSelectedOfferedSkill(e.target.value)}
                     >
-                      <option value="">Select a skill</option>
+                      <option value="">Select your skill</option>
 
                       {myOfferedSkills.map((skill) => (
                         <option key={skill.id} value={skill.id}>
@@ -456,10 +833,14 @@ function Browse() {
                         </option>
                       ))}
                     </select>
+
+                    <small>What you can teach</small>
                   </div>
 
-                  <div>
-                    <label>Skill I want to learn</label>
+                  <div className="browse-swap-arrow">⇄</div>
+
+                  <div className="browse-swap-field">
+                    <label>YOU WANT</label>
 
                     <select
                       value={selectedRequestedSkill}
@@ -475,80 +856,169 @@ function Browse() {
                         </option>
                       ))}
                     </select>
+
+                    <small>What you want to learn</small>
+                  </div>
+                </div>
+
+                <div className="browse-swap-note">
+                  <span>✓</span>
+                  <span>100% free peer-to-peer skill exchange</span>
+                </div>
+
+                <div className="browse-swap-message">
+                  <div className="browse-swap-message-header">
+                    <label>PERSONAL NOTE</label>
+                    <span>{swapMessage.length} / 2000</span>
                   </div>
 
-                  <div>
-                    <label>Message</label>
+                  <textarea
+                    placeholder="Introduce yourself and explain what you'd like to learn..."
+                    maxLength={2000}
+                    value={swapMessage}
+                    onChange={(e) => setSwapMessage(e.target.value)}
+                  />
+                </div>
 
-                    <textarea
-                      placeholder="Write a message..."
-                      value={swapMessage}
-                      onChange={(e) => setSwapMessage(e.target.value)}
-                    />
-                  </div>
+                <div className="browse-swap-summary">
+                  <span>
+                    Summary:{" "}
+                    <strong>
+                      {myOfferedSkills.find(
+                        (skill) => skill.id === selectedOfferedSkill,
+                      )?.name || "Your skill"}
+                    </strong>
+                    {" → "}
+                    <strong>
+                      {swapUser.offers[
+                        swapUser.offerSkillIds.indexOf(selectedRequestedSkill)
+                      ] || "Learning skill"}
+                    </strong>
+                  </span>
 
-                  <button type="button" onClick={handleSendSwapRequest}>
-                    Send Swap Request
-                  </button>
+                  <span>1-on-1 skill exchange</span>
+                </div>
 
-                  <button type="button" onClick={() => setSwapUser(null)}>
+                <div className="browse-modal-actions">
+                  <button
+                    type="button"
+                    className="browse-modal-cancel"
+                    onClick={() => setSwapUser(null)}
+                  >
                     Cancel
                   </button>
+
+                  <button
+                    type="button"
+                    className="browse-modal-send"
+                    onClick={handleSendSwapRequest}
+                    disabled={!selectedOfferedSkill || !selectedRequestedSkill}
+                  >
+                    Send Swap Request
+                  </button>
                 </div>
-              )}
+              </div>
             </div>
           )}
-        </div>
 
-        {searchLoading ? (
-          <p>Searching...</p>
-        ) : submittedSearch && searchResults.length === 0 ? (
-          <p>No users found.</p>
-        ) : (
-          <div>
-            {searchResults.map((result) => (
-              <div key={`${result.user_id}-${result.skills?.id || "unknown"}`}>
-                <h3>
-                  {result.profile?.full_name ||
-                    result.profile?.username ||
-                    "Unknown User"}
-                </h3>
-
-                <p>Username: @{result.profile?.username || "N/A"}</p>
-
-                <p>Location: {result.profile?.location || "Not provided"}</p>
-
-                <p>
-                  Availability:{" "}
-                  {result.profile?.availability?.length > 0
-                    ? result.profile.availability
-                        .map((value) => {
-                          const labels = {
-                            weekends: "Weekends",
-                            weekday_nights: "Monday–Saturday, 8 PM–10 PM",
-                            evenings: "Monday–Friday, 6 PM–8 PM",
-                            weekday_mornings: "Monday–Friday, 7 AM–9 AM",
-                          };
-
-                          return labels[value] || value;
-                        })
-                        .join(", ")
-                    : "Not provided"}
-                </p>
-
-                <p>Offers: {result.skills?.name || "Unknown skill"}</p>
-
-                <button
-                  type="button"
-                  onClick={() => navigate(`/profile/${result.user_id}`)}
-                >
-                  View Profile
-                </button>
+          <section className="browse-search-results">
+            {submittedSearch && (
+              <div className="browse-section-heading browse-results-heading">
+                <div>
+                  <span className="browse-section-eyebrow">SEARCH RESULTS</span>
+                  <h2>People offering {submittedSearch}</h2>
+                  <p>Find someone who can help you learn this skill.</p>
+                </div>
               </div>
-            ))}
-          </div>
-        )}
-      </div>
+            )}
+
+            {searchLoading ? (
+              <div className="browse-state-card">
+                <p>Searching...</p>
+              </div>
+            ) : submittedSearch && searchResults.length === 0 ? (
+              <div className="browse-state-card">
+                <p>No users found for "{submittedSearch}".</p>
+              </div>
+            ) : (
+              submittedSearch && (
+                <div className="browse-search-result-grid">
+                  {searchResults.map((result) => (
+                    <article
+                      className="browse-search-result-card"
+                      key={`${result.user_id}-${result.skills?.id || "unknown"}`}
+                    >
+                      <div className="browse-card-top">
+                        <div className="browse-profile-avatar">
+                          {(
+                            result.profile?.full_name ||
+                            result.profile?.username ||
+                            "U"
+                          )
+                            .charAt(0)
+                            .toUpperCase()}
+                        </div>
+
+                        <span className="browse-result-skill-badge">
+                          {result.skills?.name || "Skill"}
+                        </span>
+                      </div>
+
+                      <div className="browse-profile-info">
+                        <h3>
+                          {result.profile?.full_name ||
+                            result.profile?.username ||
+                            "Unknown User"}
+                        </h3>
+
+                        <span className="browse-username">
+                          @{result.profile?.username || "N/A"}
+                        </span>
+
+                        <span className="browse-location">
+                          📍{" "}
+                          {result.profile?.location || "Location not provided"}
+                        </span>
+                      </div>
+
+                      <div className="browse-availability">
+                        <span>●</span>
+                        {result.profile?.availability?.length > 0
+                          ? result.profile.availability
+                              .map((value) => {
+                                const labels = {
+                                  weekends: "Weekends",
+                                  weekday_nights: "Mon–Sat evenings",
+                                  evenings: "Weekday evenings",
+                                  weekday_mornings: "Weekday mornings",
+                                };
+
+                                return labels[value] || value;
+                              })
+                              .join(", ")
+                          : "Availability not provided"}
+                      </div>
+
+                      <div className="browse-result-offer">
+                        <small>CAN TEACH</small>
+                        <p>{result.skills?.name || "Unknown skill"}</p>
+                      </div>
+
+                      <button
+                        type="button"
+                        className="browse-profile-button browse-result-profile-button"
+                        onClick={() => navigate(`/profile/${result.user_id}`)}
+                      >
+                        View Profile
+                      </button>
+                    </article>
+                  ))}
+                </div>
+              )
+            )}
+          </section>
+        </div>
+      </main>
     </div>
   );
 }
