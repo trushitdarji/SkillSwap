@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { supabase } from "../lib/supabase";
+import "./AdminDashboard.css";
 
 const downloadCSV = (filename, rows) => {
   if (!rows || rows.length === 0) {
@@ -44,6 +45,9 @@ function AdminDashboard() {
   });
 
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [refreshKey, setRefreshKey] = useState(0);
+  const [dateRange, setDateRange] = useState("30");
   const [users, setUsers] = useState([]);
   const [usersLoading, setUsersLoading] = useState(true);
   const [roleUpdating, setRoleUpdating] = useState(null);
@@ -54,7 +58,10 @@ function AdminDashboard() {
   const [pendingSkills, setPendingSkills] = useState([]);
   const [pendingSkillsLoading, setPendingSkillsLoading] = useState(true);
   const [swapUpdating, setSwapUpdating] = useState(null);
+  const [swapFilter, setSwapFilter] = useState("all");
   const [userSearch, setUserSearch] = useState("");
+  const [roleFilter, setRoleFilter] = useState("");
+  const [statusFilter, setStatusFilter] = useState("");
   const [announcementTitle, setAnnouncementTitle] = useState("");
   const [announcementMessage, setAnnouncementMessage] = useState("");
   const [announcementLoading, setAnnouncementLoading] = useState(false);
@@ -63,64 +70,73 @@ function AdminDashboard() {
   const [reportRatings, setReportRatings] = useState([]);
   const [reportActivityLogs, setReportActivityLogs] = useState([]);
   const [reportsLoading, setReportsLoading] = useState(true);
+  const [currentUserPage, setCurrentUserPage] = useState(1);
+  const usersPerPage = 5;
+
+  const fetchStats = async () => {
+    const { data: sessionData } = await supabase.auth.getSession();
+    const userId = sessionData.session?.user?.id;
+    setCurrentUserId(userId);
+
+    const { count: usersCount, error: usersError } = await supabase
+      .from("profiles")
+      .select("*", { count: "exact", head: true });
+
+    const { count: publicProfilesCount, error: publicProfilesError } =
+      await supabase
+        .from("profiles")
+        .select("*", { count: "exact", head: true })
+        .eq("is_public", true);
+
+    const { count: activeSwapsCount, error: activeSwapsError } = await supabase
+      .from("swap_requests")
+      .select("*", { count: "exact", head: true })
+      .eq("status", "accepted");
+
+    const { count: completedSwapsCount, error: completedSwapsError } =
+      await supabase
+        .from("swap_requests")
+        .select("*", { count: "exact", head: true })
+        .eq("status", "completed");
+
+    if (
+      usersError ||
+      publicProfilesError ||
+      activeSwapsError ||
+      completedSwapsError
+    ) {
+      console.error("Admin stats error:", {
+        usersError,
+        publicProfilesError,
+        activeSwapsError,
+        completedSwapsError,
+      });
+      setLoading(false);
+      return;
+    }
+
+    setStats({
+      users: usersCount || 0,
+      publicProfiles: publicProfilesCount || 0,
+      activeSwaps: activeSwapsCount || 0,
+      completedSwaps: completedSwapsCount || 0,
+    });
+
+    setLoading(false);
+  };
+
+  const handleRefreshData = async () => {
+    setRefreshing(true);
+    setRefreshKey((prev) => prev + 1);
+
+    setTimeout(() => {
+      setRefreshing(false);
+    }, 800);
+  };
 
   useEffect(() => {
-    const fetchStats = async () => {
-      const { data: sessionData } = await supabase.auth.getSession();
-      const userId = sessionData.session?.user?.id;
-
-      setCurrentUserId(userId);
-      const { count: usersCount, error: usersError } = await supabase
-        .from("profiles")
-        .select("*", { count: "exact", head: true });
-
-      const { count: publicProfilesCount, error: publicProfilesError } =
-        await supabase
-          .from("profiles")
-          .select("*", { count: "exact", head: true })
-          .eq("is_public", true);
-
-      const { count: activeSwapsCount, error: activeSwapsError } =
-        await supabase
-          .from("swap_requests")
-          .select("*", { count: "exact", head: true })
-          .eq("status", "accepted");
-
-      const { count: completedSwapsCount, error: completedSwapsError } =
-        await supabase
-          .from("swap_requests")
-          .select("*", { count: "exact", head: true })
-          .eq("status", "completed");
-
-      if (
-        usersError ||
-        publicProfilesError ||
-        activeSwapsError ||
-        completedSwapsError
-      ) {
-        console.error("Admin stats error:", {
-          usersError,
-          publicProfilesError,
-          activeSwapsError,
-          completedSwapsError,
-        });
-
-        setLoading(false);
-        return;
-      }
-
-      setStats({
-        users: usersCount || 0,
-        publicProfiles: publicProfilesCount || 0,
-        activeSwaps: activeSwapsCount || 0,
-        completedSwaps: completedSwapsCount || 0,
-      });
-
-      setLoading(false);
-    };
-
     fetchStats();
-  }, []);
+  }, [refreshKey]);
 
   useEffect(() => {
     const fetchUsers = async () => {
@@ -156,7 +172,7 @@ function AdminDashboard() {
     };
 
     fetchUsers();
-  }, []);
+  }, [refreshKey]);
 
   useEffect(() => {
     const fetchPendingSkills = async () => {
@@ -193,39 +209,50 @@ function AdminDashboard() {
     };
 
     fetchPendingSkills();
-  }, []);
+  }, [refreshKey]);
 
   useEffect(() => {
     const fetchSwaps = async () => {
-      const { data, error } = await supabase
+      let query = supabase
         .from("swap_requests")
         .select(
           `
-        id,
-        sender_id,
-        receiver_id,
-        offered_skill_id,
-        requested_skill_id,
-        message,
-        status,
-        created_at,
-        sender:profiles!swap_requests_sender_id_fkey (
-          full_name,
-          username
-        ),
-        receiver:profiles!swap_requests_receiver_id_fkey (
-          full_name,
-          username
-        ),
-        offered_skill:skills!swap_requests_offered_skill_id_fkey (
-          name
-        ),
-        requested_skill:skills!swap_requests_requested_skill_id_fkey (
-          name
-        )
-      `,
+    id,
+    sender_id,
+    receiver_id,
+    offered_skill_id,
+    requested_skill_id,
+    message,
+    status,
+    created_at,
+    sender:profiles!swap_requests_sender_id_fkey (
+      full_name,
+      username
+    ),
+    receiver:profiles!swap_requests_receiver_id_fkey (
+      full_name,
+      username
+    ),
+    offered_skill:skills!swap_requests_offered_skill_id_fkey (
+      name
+    ),
+    requested_skill:skills!swap_requests_requested_skill_id_fkey (
+      name
+    )
+  `,
         )
         .order("created_at", { ascending: false });
+
+      if (dateRange !== "all") {
+        const days = Number(dateRange);
+        const startDate = new Date();
+
+        startDate.setDate(startDate.getDate() - days);
+
+        query = query.gte("created_at", startDate.toISOString());
+      }
+
+      const { data, error } = await query;
 
       if (error) {
         console.error("Swaps fetch error:", error);
@@ -233,31 +260,73 @@ function AdminDashboard() {
         return;
       }
 
-      setSwaps(data || []);
+      const swapData = data || [];
+
+      const { data: ratingsData, error: ratingsError } = await supabase
+        .from("ratings")
+        .select("swap_request_id, rating")
+        .in(
+          "swap_request_id",
+          swapData.map((swap) => swap.id),
+        );
+
+      if (ratingsError) {
+        console.error("Swap ratings fetch error:", ratingsError);
+      }
+
+      const swapsWithRatings = swapData.map((swap) => ({
+        ...swap,
+        rating:
+          ratingsData?.find((rating) => rating.swap_request_id === swap.id)
+            ?.rating || null,
+      }));
+
+      setSwaps(swapsWithRatings);
       setSwapsLoading(false);
     };
 
     fetchSwaps();
-  }, []);
+  }, [refreshKey, dateRange]);
 
   useEffect(() => {
     const fetchReportData = async () => {
+      const getDateFilter = () => {
+        if (dateRange === "all") {
+          return null;
+        }
+
+        const days = Number(dateRange);
+        const startDate = new Date();
+
+        startDate.setDate(startDate.getDate() - days);
+
+        return startDate.toISOString();
+      };
+
+      const startDate = getDateFilter();
+
       setReportsLoading(true);
 
-      const { data: ratingsData, error: ratingsError } = await supabase
+      let ratingsQuery = supabase
         .from("ratings")
         .select(
           `
-        id,
-        swap_request_id,
-        reviewer_id,
-        reviewee_id,
-        rating,
-        feedback,
-        created_at
-      `,
+    id,
+    swap_request_id,
+    reviewer_id,
+    reviewee_id,
+    rating,
+    feedback,
+    created_at
+  `,
         )
         .order("created_at", { ascending: false });
+
+      if (startDate) {
+        ratingsQuery = ratingsQuery.gte("created_at", startDate);
+      }
+
+      const { data: ratingsData, error: ratingsError } = await ratingsQuery;
 
       if (ratingsError) {
         console.error("Report ratings fetch error:", ratingsError);
@@ -265,18 +334,24 @@ function AdminDashboard() {
         setReportRatings(ratingsData || []);
       }
 
-      const { data: activityData, error: activityError } = await supabase
+      let activityQuery = supabase
         .from("activity_logs")
         .select(
           `
-        id,
-        user_id,
-        action_type,
-        description,
-        created_at
-      `,
+    id,
+    user_id,
+    action_type,
+    description,
+    created_at
+  `,
         )
         .order("created_at", { ascending: false });
+
+      if (startDate) {
+        activityQuery = activityQuery.gte("created_at", startDate);
+      }
+
+      const { data: activityData, error: activityError } = await activityQuery;
 
       if (activityError) {
         console.error("Report activity fetch error:", activityError);
@@ -288,7 +363,7 @@ function AdminDashboard() {
     };
 
     fetchReportData();
-  }, []);
+  }, [refreshKey, dateRange]);
 
   const handleRoleChange = async (userId, newRole) => {
     setRoleUpdating(userId);
@@ -525,286 +600,1161 @@ function AdminDashboard() {
     totalActivityLogs: reportActivityLogs.length,
   };
 
+  const filteredSwaps = swaps.filter((swap) => {
+    if (swapFilter === "all") return true;
+    return swap.status === swapFilter;
+  });
+
+  const currentAdmin = users.find((user) => user.id === currentUserId);
+
+  const filteredUsers = users.filter((user) => {
+    const search = userSearch.toLowerCase().trim();
+
+    const matchesSearch =
+      !search ||
+      user.full_name?.toLowerCase().includes(search) ||
+      user.username?.toLowerCase().includes(search) ||
+      user.email?.toLowerCase().includes(search) ||
+      user.location?.toLowerCase().includes(search);
+
+    const matchesRole = !roleFilter || user.role === roleFilter;
+
+    const matchesStatus =
+      !statusFilter ||
+      (statusFilter === "active" && !user.is_banned) ||
+      (statusFilter === "banned" && user.is_banned);
+
+    return matchesSearch && matchesRole && matchesStatus;
+  });
+
+  const totalUserPages = Math.ceil(filteredUsers.length / usersPerPage);
+
+  const userStartIndex = (currentUserPage - 1) * usersPerPage;
+
+  const paginatedUsers = filteredUsers.slice(
+    userStartIndex,
+    userStartIndex + usersPerPage,
+  );
+
+  useEffect(() => {
+    setCurrentUserPage(1);
+  }, [userSearch, roleFilter, statusFilter]);
+
   return (
-    <div>
-      <h1>Admin Dashboard</h1>
-      <p>Welcome to the admin panel.</p>
+    <div className="admin-page">
+      {/* ================= NAVBAR ================= */}
+      <header className="admin-navbar">
+        <div className="admin-brand">
+          <div className="admin-brand-icon">S</div>
 
-      <div>
-        <h2>Platform Announcement</h2>
+          <span className="admin-brand-name">SkillSwap</span>
 
-        <form onSubmit={handleCreateAnnouncement}>
-          <div>
-            <label>Title</label>
-            <input
-              type="text"
-              placeholder="Announcement title"
-              value={announcementTitle}
-              onChange={(e) => setAnnouncementTitle(e.target.value)}
-              maxLength={200}
-            />
-          </div>
-
-          <div>
-            <label>Message</label>
-            <textarea
-              placeholder="Write announcement message..."
-              value={announcementMessage}
-              onChange={(e) => setAnnouncementMessage(e.target.value)}
-              maxLength={2000}
-              rows={5}
-            />
-          </div>
-
-          <button type="submit" disabled={announcementLoading}>
-            {announcementLoading ? "Sending..." : "Send Announcement"}
-          </button>
-        </form>
-
-        {announcementMessageStatus && <p>{announcementMessageStatus}</p>}
-      </div>
-
-      {loading ? (
-        <p>Loading stats...</p>
-      ) : (
-        <div>
-          <div>
-            <h2>Total Users</h2>
-            <p>{stats.users}</p>
-          </div>
-
-          <div>
-            <h2>Public Profiles</h2>
-            <p>{stats.publicProfiles}</p>
-          </div>
-
-          <div>
-            <h2>Active Swaps</h2>
-            <p>{stats.activeSwaps}</p>
-          </div>
-
-          <div>
-            <h2>Completed Swaps</h2>
-            <p>{stats.completedSwaps}</p>
-          </div>
+          <span className="admin-brand-badge">
+            ADMIN
+            <br />
+            DASHBOARD
+          </span>
         </div>
-      )}
 
-      <div>
-        <h2>User Management</h2>
+        <nav className="admin-nav">
+          <button className="admin-nav-item active">Overview</button>
 
-        <input
-          type="text"
-          placeholder="Search users..."
-          value={userSearch}
-          onChange={(e) => setUserSearch(e.target.value)}
-        />
+          <button className="admin-nav-item">Users</button>
 
-        {usersLoading ? (
-          <p>Loading users...</p>
-        ) : users.length === 0 ? (
-          <p>No users found.</p>
-        ) : (
-          <div>
-            {users
-              .filter((user) => {
-                const search = userSearch.toLowerCase().trim();
+          <button className="admin-nav-item">
+            Skill
+            <br />
+            Moderation
+          </button>
 
-                if (!search) return true;
+          <button className="admin-nav-item">
+            Swap
+            <br />
+            Monitoring
+          </button>
 
-                return (
-                  user.full_name?.toLowerCase().includes(search) ||
-                  user.username?.toLowerCase().includes(search) ||
-                  user.email?.toLowerCase().includes(search) ||
-                  user.location?.toLowerCase().includes(search)
-                );
-              })
-              .map((user) => (
-                <div key={user.id}>
-                  <h3>{user.full_name || "Unnamed User"}</h3>
+          <button className="admin-nav-item">Announcements</button>
 
-                  <p>Username: @{user.username || "N/A"}</p>
+          <button className="admin-nav-item">Reports</button>
+        </nav>
 
-                  <p>Email: {user.email || "N/A"}</p>
+        <div className="admin-navbar-right">
+          <div className="admin-user-info">
+            <strong>{currentAdmin?.full_name || "Admin User"}</strong>
 
-                  <p>Location: {user.location || "Not provided"}</p>
-
-                  <p>Profile: {user.is_public ? "Public" : "Private"}</p>
-
-                  <p>Role: {user.role}</p>
-
-                  {user.id !== currentUserId && (
-                    <button
-                      type="button"
-                      disabled={roleUpdating === user.id}
-                      onClick={() =>
-                        handleRoleChange(
-                          user.id,
-                          user.role === "admin" ? "user" : "admin",
-                        )
-                      }
-                    >
-                      {roleUpdating === user.id
-                        ? "Updating..."
-                        : user.role === "admin"
-                          ? "Remove Admin"
-                          : "Make Admin"}
-                    </button>
-                  )}
-                  {user.id !== currentUserId && (
-                    <button
-                      type="button"
-                      disabled={banUpdating === user.id}
-                      onClick={() => handleBanChange(user.id, !user.is_banned)}
-                    >
-                      {banUpdating === user.id
-                        ? "Updating..."
-                        : user.is_banned
-                          ? "Unban User"
-                          : "Ban User"}
-                    </button>
-                  )}
-                </div>
-              ))}
+            <span>{currentAdmin?.email || "admin@skillswap.io"}</span>
           </div>
-        )}
-      </div>
-      <div>
-        <h2>Skill Moderation</h2>
 
-        {pendingSkillsLoading ? (
-          <p>Loading pending skills...</p>
-        ) : pendingSkills.length === 0 ? (
-          <p>No pending skills.</p>
-        ) : (
-          <div>
-            {pendingSkills.map((skill) => (
-              <div key={skill.id}>
-                <h3>{skill.skills?.name || "Unknown Skill"}</h3>
-
-                <p>User: @{skill.profiles?.username || "N/A"}</p>
-
-                <p>
-                  Type:{" "}
-                  {skill.skill_type === "offer"
-                    ? "I can teach"
-                    : "I want to learn"}
-                </p>
-
-                <p>Description: {skill.description || "No description"}</p>
-
-                <p>Status: {skill.moderation_status}</p>
-
-                <button
-                  type="button"
-                  onClick={() => handleSkillModeration(skill.id, "approved")}
-                >
-                  Approve
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => handleSkillModeration(skill.id, "rejected")}
-                >
-                  Reject
-                </button>
-
-                <hr />
-              </div>
-            ))}
+          <div className="admin-avatar">
+            {(currentAdmin?.full_name || "A").charAt(0).toUpperCase()}
           </div>
-        )}
-      </div>
-      <div>
-        <h2>Swap Monitoring</h2>
 
-        {swapsLoading ? (
-          <p>Loading swaps...</p>
-        ) : swaps.length === 0 ? (
-          <p>No swap requests found.</p>
-        ) : (
+          <button className="admin-logout-icon" type="button">
+            ↪
+          </button>
+        </div>
+      </header>
+
+      {/* ================= PAGE HEADER ================= */}
+      <main className="admin-content">
+        <div className="admin-page-heading">
           <div>
-            {swaps.map((swap) => (
-              <div key={swap.id}>
-                <h3>
-                  {swap.sender?.full_name || "Unknown User"} →{" "}
-                  {swap.receiver?.full_name || "Unknown User"}
-                </h3>
+            <div className="admin-eyebrow">
+              PLATFORM ADMINISTRATION
+              <span>•</span>
+              Cluster eu-west-1
+            </div>
 
-                <p>Sender: @{swap.sender?.username || "N/A"}</p>
+            <h1>Admin Dashboard</h1>
 
-                <p>Receiver: @{swap.receiver?.username || "N/A"}</p>
-
-                <p>Offering: {swap.offered_skill?.name || "N/A"}</p>
-
-                <p>Wants to learn: {swap.requested_skill?.name || "N/A"}</p>
-
-                <p>Message: {swap.message || "No message"}</p>
-
-                <p>Status: {swap.status}</p>
-
-                <p>Created: {new Date(swap.created_at).toLocaleString()}</p>
-
-                {swap.status === "pending" && (
-                  <button
-                    type="button"
-                    disabled={swapUpdating === swap.id}
-                    onClick={() => handleRejectSwap(swap.id)}
-                  >
-                    {swapUpdating === swap.id ? "Rejecting..." : "Reject Swap"}
-                  </button>
-                )}
-
-                <hr />
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-      <div>
-        <h2>Reports Summary</h2>
-        <button type="button" onClick={handleDownloadUsersReport}>
-          Download Users Report
-        </button>
-        <button type="button" onClick={handleDownloadSwapsReport}>
-          Download Swaps Report
-        </button>
-        <button type="button" onClick={handleDownloadRatingsReport}>
-          Download Ratings & Feedback Report
-        </button>
-        <button type="button" onClick={handleDownloadActivityReport}>
-          Download Activity Report
-        </button>
-
-        {reportsLoading ? (
-          <p>Loading reports...</p>
-        ) : (
-          <div>
-            <h3>Users</h3>
-            <p>Total Users: {reportSummary.totalUsers}</p>
-            <p>Active Users: {reportSummary.activeUsers}</p>
-            <p>Banned Users: {reportSummary.bannedUsers}</p>
-            <p>Admin Users: {reportSummary.adminUsers}</p>
-
-            <h3>Swaps</h3>
-            <p>Pending: {reportSummary.pendingSwaps}</p>
-            <p>Accepted: {reportSummary.acceptedSwaps}</p>
-            <p>Completed: {reportSummary.completedSwaps}</p>
-            <p>Rejected: {reportSummary.rejectedSwaps}</p>
-            <p>Cancelled: {reportSummary.cancelledSwaps}</p>
-
-            <h3>Ratings & Feedback</h3>
-            <p>Total Ratings: {reportSummary.totalRatings}</p>
-            <p>Average Rating: {reportSummary.averageRating}</p>
-
-            <h3>Activity</h3>
-            <p>Total Activity Logs: {reportSummary.totalActivityLogs}</p>
             <p>
-              Pending Skill Moderations: {reportSummary.pendingSkillModerations}
+              Manage users, skills, swaps, and real-time platform activity
+              across the SkillSwap network.
             </p>
           </div>
+
+          <div className="admin-heading-actions">
+            <span className="admin-operational">
+              <span className="admin-status-dot"></span>
+              Platform Operational
+            </span>
+
+            <select
+              className="admin-filter-button"
+              value={dateRange}
+              onChange={(e) => setDateRange(e.target.value)}
+            >
+              <option value="1">Last 1 Day</option>
+              <option value="2">Last 2 Days</option>
+              <option value="3">Last 3 Days</option>
+              <option value="7">Last 7 Days</option>
+              <option value="30">Last 30 Days</option>
+              <option value="90">Last 90 Days</option>
+              <option value="all">All Time</option>
+            </select>
+
+            <button
+              className="admin-refresh-button"
+              type="button"
+              onClick={handleRefreshData}
+              disabled={refreshing}
+            >
+              ↻ {refreshing ? "Refreshing..." : "Refresh Data"}
+            </button>
+          </div>
+        </div>
+
+        {/* ================= STATS ================= */}
+        {loading ? (
+          <div className="admin-loading-card">Loading stats...</div>
+        ) : (
+          <div className="admin-stats-grid">
+            <div className="admin-stat-card">
+              <div className="admin-stat-top">
+                <div>
+                  <span className="admin-stat-label">TOTAL USERS</span>
+
+                  <strong className="admin-stat-number">
+                    {stats.users.toLocaleString()}
+                  </strong>
+                </div>
+
+                <div className="admin-stat-icon users-icon">♧</div>
+              </div>
+
+              <div className="admin-stat-bottom">
+                <span className="admin-stat-growth">↗ +12.4%</span>
+                <span>this month</span>
+              </div>
+            </div>
+
+            <div className="admin-stat-card">
+              <div className="admin-stat-top">
+                <div>
+                  <span className="admin-stat-label">PUBLIC PROFILES</span>
+
+                  <strong className="admin-stat-number">
+                    {stats.publicProfiles.toLocaleString()}
+                  </strong>
+                </div>
+
+                <div className="admin-stat-icon profile-icon">♢</div>
+              </div>
+
+              <div className="admin-stat-bottom">
+                <strong>75.6%</strong>
+                <span>profile completion rate</span>
+              </div>
+            </div>
+
+            <div className="admin-stat-card">
+              <div className="admin-stat-top">
+                <div>
+                  <span className="admin-stat-label">ACTIVE SWAPS</span>
+
+                  <strong className="admin-stat-number">
+                    {stats.activeSwaps.toLocaleString()}
+                  </strong>
+                </div>
+
+                <div className="admin-stat-icon swap-icon">⇄</div>
+              </div>
+
+              <div className="admin-stat-bottom">
+                <span className="admin-purple-dot"></span>
+                <span>Active peer trades in-flight</span>
+              </div>
+            </div>
+
+            <div className="admin-stat-card">
+              <div className="admin-stat-top">
+                <div>
+                  <span className="admin-stat-label">COMPLETED SWAPS</span>
+
+                  <strong className="admin-stat-number">
+                    {stats.completedSwaps.toLocaleString()}
+                  </strong>
+                </div>
+
+                <div className="admin-stat-icon completed-icon">✓</div>
+              </div>
+
+              <div className="admin-stat-bottom">
+                <span className="admin-stat-growth">98.4%</span>
+                <span>satisfaction rating</span>
+              </div>
+            </div>
+          </div>
         )}
-      </div>
+
+        {/* ================= USER MANAGEMENT ================= */}
+        <section className="admin-section">
+          <div className="admin-section-heading">
+            <div>
+              <div className="admin-section-title-row">
+                <h2>User Management</h2>
+
+                <span className="admin-count-badge">
+                  {users.length.toLocaleString()} Total
+                </span>
+              </div>
+
+              <p>
+                Audit accounts, manage administrative privileges, and enforce
+                community moderation policies.
+              </p>
+            </div>
+
+            <div className="admin-user-filters">
+              <div className="admin-search-box">
+                <span>⌕</span>
+
+                <input
+                  type="text"
+                  placeholder="Search by name, @handle, or email"
+                  value={userSearch}
+                  onChange={(e) => setUserSearch(e.target.value)}
+                />
+              </div>
+
+              <select
+                className="admin-select"
+                value={roleFilter}
+                onChange={(e) => setRoleFilter(e.target.value)}
+              >
+                <option value="">All Roles</option>
+                <option value="admin">Admin</option>
+                <option value="user">Member</option>
+              </select>
+
+              <select
+                className="admin-select"
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value)}
+              >
+                <option value="">All Status</option>
+                <option value="active">Active</option>
+                <option value="banned">Banned</option>
+              </select>
+            </div>
+          </div>
+
+          {usersLoading ? (
+            <div className="admin-table-state">Loading users...</div>
+          ) : filteredUsers.length === 0 ? (
+            <div className="admin-table-state">No users found.</div>
+          ) : (
+            <div className="admin-table-wrapper">
+              <table className="admin-users-table">
+                <thead>
+                  <tr>
+                    <th>USER / IDENTITY</th>
+                    <th>CONTACT</th>
+                    <th>LOCATION</th>
+                    <th>PROFILE</th>
+                    <th>ROLE</th>
+                    <th>STATUS</th>
+                    <th>ADMINISTRATIVE ACTIONS</th>
+                  </tr>
+                </thead>
+
+                <tbody>
+                  {paginatedUsers.map((user) => (
+                    <tr key={user.id}>
+                      <td>
+                        <div className="admin-user-cell">
+                          <div className="admin-table-avatar">
+                            {(user.full_name || "U").charAt(0).toUpperCase()}
+                          </div>
+
+                          <div>
+                            <div className="admin-user-name">
+                              {user.full_name || "Unnamed User"}
+
+                              {user.id === currentUserId && (
+                                <span className="admin-you-badge">YOU</span>
+                              )}
+                            </div>
+
+                            <span className="admin-user-handle">
+                              @{user.username || "N/A"}
+                            </span>
+                          </div>
+                        </div>
+                      </td>
+
+                      <td>
+                        <span className="admin-contact">
+                          {user.email || "N/A"}
+                        </span>
+                      </td>
+
+                      <td>
+                        <span className="admin-location">
+                          {user.location || "Not provided"}
+                        </span>
+                      </td>
+
+                      <td>
+                        <span className="admin-status-pill public">
+                          {user.is_public ? "◉ Public" : "▣ Private"}
+                        </span>
+                      </td>
+
+                      <td>
+                        <span
+                          className={`admin-role-pill ${
+                            user.role === "admin" ? "admin-role" : "member-role"
+                          }`}
+                        >
+                          {user.role === "admin" ? "Admin" : "Member"}
+                        </span>
+                      </td>
+
+                      <td>
+                        <span
+                          className={`admin-status-pill ${
+                            user.is_banned ? "banned" : "active"
+                          }`}
+                        >
+                          <span className="status-pill-dot"></span>
+                          {user.is_banned ? "Banned" : "Active"}
+                        </span>
+                      </td>
+
+                      <td>
+                        <div className="admin-actions">
+                          {user.id === currentUserId ? (
+                            <span className="admin-current-session">
+                              🔒 Current Session (Protected)
+                            </span>
+                          ) : (
+                            <>
+                              <button
+                                type="button"
+                                className="admin-action-button admin-button-primary"
+                                disabled={roleUpdating === user.id}
+                                onClick={() =>
+                                  handleRoleChange(
+                                    user.id,
+                                    user.role === "admin" ? "user" : "admin",
+                                  )
+                                }
+                              >
+                                {roleUpdating === user.id
+                                  ? "Updating..."
+                                  : user.role === "admin"
+                                    ? "Remove Admin"
+                                    : "Make Admin"}
+                              </button>
+
+                              <button
+                                type="button"
+                                className={`admin-action-button ${
+                                  user.is_banned
+                                    ? "admin-button-unban"
+                                    : "admin-button-danger"
+                                }`}
+                                disabled={banUpdating === user.id}
+                                onClick={() =>
+                                  handleBanChange(user.id, !user.is_banned)
+                                }
+                              >
+                                {banUpdating === user.id
+                                  ? "Updating..."
+                                  : user.is_banned
+                                    ? "Unban User"
+                                    : "Ban User"}
+                              </button>
+                            </>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          <div className="admin-table-footer">
+            <span>
+              Showing {filteredUsers.length === 0 ? 0 : userStartIndex + 1} -{" "}
+              {Math.min(userStartIndex + usersPerPage, filteredUsers.length)} of{" "}
+              {filteredUsers.length.toLocaleString()} registered users
+            </span>
+
+            <div className="admin-pagination">
+              <button
+                type="button"
+                disabled={currentUserPage === 1}
+                onClick={() => setCurrentUserPage((prev) => prev - 1)}
+              >
+                Previous
+              </button>
+
+              {Array.from(
+                { length: totalUserPages },
+                (_, index) => index + 1,
+              ).map((page) => (
+                <button
+                  key={page}
+                  type="button"
+                  className={currentUserPage === page ? "active" : ""}
+                  onClick={() => setCurrentUserPage(page)}
+                >
+                  {page}
+                </button>
+              ))}
+
+              <button
+                type="button"
+                disabled={
+                  currentUserPage === totalUserPages || totalUserPages === 0
+                }
+                onClick={() => setCurrentUserPage((prev) => prev + 1)}
+              >
+                Next
+              </button>
+            </div>
+          </div>
+        </section>
+        {/* ================= SKILL MODERATION ================= */}
+        <section className="admin-section moderation-section">
+          <div className="moderation-header">
+            <div>
+              <div className="moderation-title-row">
+                <h2>Skill Moderation Queue</h2>
+
+                <span className="pending-review-badge">
+                  {pendingSkills.length} Pending Review
+                </span>
+              </div>
+
+              <p>
+                Vet proposed skills against university guidelines, commercial
+                policy, and platform integrity.
+              </p>
+            </div>
+            <button
+              type="button"
+              className="preview-queue-button"
+              onClick={() => {
+                setPendingSkillsLoading(true);
+                setRefreshKey((prev) => prev + 1);
+              }}
+            >
+              ◉ Preview Clean Queue
+            </button>
+          </div>
+
+          {pendingSkillsLoading ? (
+            <div className="admin-table-state">Loading pending skills...</div>
+          ) : pendingSkills.length === 0 ? (
+            <div className="admin-table-state">No pending skills.</div>
+          ) : (
+            <div className="skill-moderation-grid">
+              {pendingSkills.map((skill) => (
+                <article className="skill-review-card" key={skill.id}>
+                  <div className="skill-card-top">
+                    <span
+                      className={`skill-type-badge ${
+                        skill.skill_type === "offer"
+                          ? "offer-badge"
+                          : "want-badge"
+                      }`}
+                    >
+                      {skill.skill_type === "offer"
+                        ? "I can teach"
+                        : "I want to learn"}
+                    </span>
+
+                    <span className="skill-pending-badge">
+                      <span></span>
+                      Pending
+                    </span>
+                  </div>
+
+                  <h3>{skill.skills?.name || "Unknown Skill"}</h3>
+
+                  <p className="skill-description">
+                    {skill.description || "No description"}
+                  </p>
+
+                  <div className="skill-card-divider"></div>
+
+                  <div className="skill-user">
+                    <div className="skill-user-avatar">
+                      {(skill.profiles?.full_name || "U")
+                        .charAt(0)
+                        .toUpperCase()}
+                    </div>
+
+                    <div>
+                      <strong>
+                        {skill.profiles?.full_name || "Unknown User"}
+                      </strong>
+
+                      <span>@{skill.profiles?.username || "N/A"}</span>
+                    </div>
+                  </div>
+
+                  <div className="skill-card-actions">
+                    <button
+                      type="button"
+                      className="skill-approve-button"
+                      onClick={() =>
+                        handleSkillModeration(skill.id, "approved")
+                      }
+                    >
+                      Approve
+                    </button>
+
+                    <button
+                      type="button"
+                      className="skill-reject-button"
+                      onClick={() =>
+                        handleSkillModeration(skill.id, "rejected")
+                      }
+                    >
+                      Reject
+                    </button>
+                  </div>
+                </article>
+              ))}
+            </div>
+          )}
+        </section>
+
+        {/* ================= SWAP MONITORING ================= */}
+        <section className="admin-section swap-monitoring-section">
+          <div className="swap-monitoring-header">
+            <div>
+              <h2>Swap Monitoring</h2>
+
+              <p>
+                Real-time audit log of active, completed, and flagged
+                peer-to-peer skill exchanges.
+              </p>
+            </div>
+
+            <div className="swap-filter-tabs">
+              <button
+                type="button"
+                className={
+                  swapFilter === "all"
+                    ? "swap-filter-tab active"
+                    : "swap-filter-tab"
+                }
+                onClick={() => setSwapFilter("all")}
+              >
+                All Swaps
+              </button>
+
+              <button
+                type="button"
+                className={
+                  swapFilter === "pending"
+                    ? "swap-filter-tab active"
+                    : "swap-filter-tab"
+                }
+                onClick={() => setSwapFilter("pending")}
+              >
+                Pending (
+                {swaps.filter((swap) => swap.status === "pending").length})
+              </button>
+
+              <button
+                type="button"
+                className={
+                  swapFilter === "accepted"
+                    ? "swap-filter-tab active"
+                    : "swap-filter-tab"
+                }
+                onClick={() => setSwapFilter("accepted")}
+              >
+                Accepted (
+                {swaps.filter((swap) => swap.status === "accepted").length})
+              </button>
+
+              <button
+                type="button"
+                className={
+                  swapFilter === "completed"
+                    ? "swap-filter-tab active"
+                    : "swap-filter-tab"
+                }
+                onClick={() => setSwapFilter("completed")}
+              >
+                Completed (
+                {swaps.filter((swap) => swap.status === "completed").length})
+              </button>
+
+              <button
+                type="button"
+                className={
+                  swapFilter === "rejected"
+                    ? "swap-filter-tab active"
+                    : "swap-filter-tab"
+                }
+                onClick={() => setSwapFilter("rejected")}
+              >
+                Rejected (
+                {swaps.filter((swap) => swap.status === "rejected").length})
+              </button>
+
+              <button
+                type="button"
+                className={
+                  swapFilter === "cancelled"
+                    ? "swap-filter-tab active"
+                    : "swap-filter-tab"
+                }
+                onClick={() => setSwapFilter("cancelled")}
+              >
+                Cancelled (
+                {swaps.filter((swap) => swap.status === "cancelled").length})
+              </button>
+            </div>
+          </div>
+
+          {swapsLoading ? (
+            <div className="admin-table-state">Loading swaps...</div>
+          ) : filteredSwaps.length === 0 ? (
+            <div className="admin-table-state">No swap requests found.</div>
+          ) : (
+            <div className="swap-table-wrapper">
+              <table className="swap-monitoring-table">
+                <thead>
+                  <tr>
+                    <th>PARTIES (SENDER → RECEIVER)</th>
+                    <th>SKILL EXCHANGE</th>
+                    <th>INTRODUCTION NOTE</th>
+                    <th>TIMELINE</th>
+                    <th>STATUS</th>
+                    <th>INTERVENTION</th>
+                  </tr>
+                </thead>
+
+                <tbody>
+                  {filteredSwaps.map((swap) => (
+                    <tr key={swap.id}>
+                      {/* PARTIES */}
+                      <td>
+                        <div className="swap-parties">
+                          <div>
+                            <strong>
+                              {swap.sender?.full_name || "Unknown User"}
+                            </strong>
+
+                            <span>@{swap.sender?.username || "N/A"}</span>
+                          </div>
+
+                          <span className="swap-arrow">→</span>
+
+                          <div>
+                            <strong>
+                              {swap.receiver?.full_name || "Unknown User"}
+                            </strong>
+
+                            <span>@{swap.receiver?.username || "N/A"}</span>
+                          </div>
+                        </div>
+                      </td>
+
+                      {/* SKILLS */}
+                      <td>
+                        <div className="swap-skills">
+                          <div>
+                            <span className="swap-skill-label offer">
+                              Offers
+                            </span>
+
+                            <span>{swap.offered_skill?.name || "N/A"}</span>
+                          </div>
+
+                          <div>
+                            <span className="swap-skill-label want">Wants</span>
+
+                            <span>{swap.requested_skill?.name || "N/A"}</span>
+                          </div>
+                        </div>
+                      </td>
+
+                      {/* MESSAGE */}
+                      <td>
+                        <span
+                          className={`swap-message ${
+                            swap.status === "rejected" ? "rejected-message" : ""
+                          }`}
+                          title={swap.message || "No message"}
+                        >
+                          “
+                          {swap.message
+                            ? swap.message.length > 35
+                              ? `${swap.message.slice(0, 35)}...`
+                              : swap.message
+                            : "No message"}
+                          ”
+                        </span>
+                      </td>
+
+                      {/* TIMELINE */}
+                      <td>
+                        <span className="swap-timeline">
+                          {new Date(swap.created_at).toLocaleString([], {
+                            month: "short",
+                            day: "numeric",
+                            hour: "2-digit",
+                            minute: "2-digit",
+                          })}
+                        </span>
+                      </td>
+
+                      {/* STATUS */}
+                      <td>
+                        <span className={`swap-status-badge ${swap.status}`}>
+                          <span></span>
+
+                          {swap.status.charAt(0).toUpperCase() +
+                            swap.status.slice(1)}
+                        </span>
+                      </td>
+
+                      {/* INTERVENTION */}
+                      <td>
+                        {swap.status === "pending" ? (
+                          <button
+                            type="button"
+                            className="swap-reject-button"
+                            disabled={swapUpdating === swap.id}
+                            onClick={() => handleRejectSwap(swap.id)}
+                          >
+                            {swapUpdating === swap.id
+                              ? "Rejecting..."
+                              : "Reject Swap"}
+                          </button>
+                        ) : swap.status === "accepted" ? (
+                          <span className="swap-intervention-text">
+                            In Progress
+                          </span>
+                        ) : swap.status === "completed" ? (
+                          <span className="swap-intervention-rating">
+                            {swap.rating
+                              ? `★ ${Number(swap.rating).toFixed(1)} Rated`
+                              : "Not Rated"}
+                          </span>
+                        ) : swap.status === "rejected" ? (
+                          <span className="swap-intervention-text danger">
+                            Policy Violation
+                          </span>
+                        ) : (
+                          <span className="swap-intervention-text">—</span>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </section>
+        {/* ================= PLATFORM ANNOUNCEMENT ================= */}
+        <section className="announcement-section">
+          <div className="announcement-heading">
+            <h2>Platform Announcement</h2>
+            <p>
+              Broadcast an alert banner or urgent operational notice to all
+              active students on SkillSwap.
+            </p>
+          </div>
+
+          <div className="announcement-layout">
+            {/* LEFT: FORM */}
+            <div className="announcement-form-card">
+              <form onSubmit={handleCreateAnnouncement}>
+                <div className="announcement-field">
+                  <label>Announcement Title</label>
+
+                  <input
+                    type="text"
+                    placeholder="Announcement title"
+                    value={announcementTitle}
+                    onChange={(e) => setAnnouncementTitle(e.target.value)}
+                    maxLength={200}
+                  />
+                </div>
+
+                <div className="announcement-field">
+                  <label>Target Audience</label>
+
+                  <select defaultValue="all">
+                    <option value="all">
+                      All Registered Students & Mentors ({users.length} users)
+                    </option>
+                  </select>
+                </div>
+
+                <div className="announcement-field">
+                  <div className="announcement-label-row">
+                    <label>Announcement Message</label>
+
+                    <span>{announcementMessage.length} / 500 characters</span>
+                  </div>
+
+                  <textarea
+                    placeholder="Write announcement message..."
+                    value={announcementMessage}
+                    onChange={(e) => setAnnouncementMessage(e.target.value)}
+                    maxLength={500}
+                    rows={5}
+                  />
+                </div>
+
+                <div className="announcement-form-footer">
+                  <span className="announcement-dispatch-info">
+                    ⓘ Dispatched via Realtime WebSocket & Push
+                  </span>
+
+                  <button
+                    type="submit"
+                    className="announcement-send-button"
+                    disabled={announcementLoading}
+                  >
+                    ✣ {announcementLoading ? "Sending..." : "Send Announcement"}
+                  </button>
+                </div>
+
+                {announcementMessageStatus && (
+                  <p
+                    className={`announcement-result ${
+                      announcementMessageStatus.includes("successfully")
+                        ? "success"
+                        : "error"
+                    }`}
+                  >
+                    {announcementMessageStatus}
+                  </p>
+                )}
+              </form>
+            </div>
+
+            {/* RIGHT: PREVIEW */}
+            <div className="announcement-preview-card">
+              <div className="announcement-preview-header">
+                <span>STUDENT DASHBOARD PREVIEW</span>
+
+                <span className="live-banner-badge">LIVE IN-APP BANNER</span>
+              </div>
+
+              <div className="announcement-preview-banner">
+                <div className="preview-icon">♧</div>
+
+                <div>
+                  <strong>
+                    {announcementTitle ||
+                      "Scheduled Platform Maintenance — Sunday at 2:00 AM UTC"}
+                  </strong>
+
+                  <p>
+                    {announcementMessage ||
+                      "We will be performing a brief 15-minute scheduled database upgrade to improve swap notification speeds and socket stability."}
+                  </p>
+
+                  <div className="preview-meta">
+                    <span>Just now</span>
+                    <span>•</span>
+                    <span>SkillSwap Ops Core</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* SUCCESS BANNER */}
+          {announcementMessageStatus &&
+            announcementMessageStatus.includes("successfully") && (
+              <div className="announcement-success-banner">
+                <span className="success-banner-icon">✓</span>
+
+                <div>
+                  <strong>Announcement Published Successfully</strong>
+
+                  <span>{announcementMessageStatus}</span>
+                </div>
+              </div>
+            )}
+        </section>
+
+        {/* ================= REPORTS ================= */}
+        <section className="reports-section">
+          <div className="reports-heading">
+            <h2>Reports & Analytics</h2>
+
+            <p>
+              Audit compliance metrics and trigger live CSV exports directly
+              from Supabase platform tables.
+            </p>
+          </div>
+
+          {reportsLoading ? (
+            <div className="admin-table-state">Loading reports...</div>
+          ) : (
+            <>
+              {/* SUMMARY CARDS */}
+              <div className="reports-summary-grid">
+                <div className="report-summary-card">
+                  <div className="report-card-heading">
+                    <span>Users Summary</span>
+                    <span>♧</span>
+                  </div>
+
+                  <div className="report-metric">
+                    <span>Total Registered:</span>
+                    <strong>{reportSummary.totalUsers.toLocaleString()}</strong>
+                  </div>
+
+                  <div className="report-metric">
+                    <span>Active Students:</span>
+                    <strong className="blue-value">
+                      {reportSummary.activeUsers.toLocaleString()}
+                    </strong>
+                  </div>
+
+                  <div className="report-metric">
+                    <span>Banned Accounts:</span>
+                    <strong className="red-value">
+                      {reportSummary.bannedUsers.toLocaleString()}
+                    </strong>
+                  </div>
+
+                  <div className="report-metric">
+                    <span>Admin Moderators:</span>
+                    <strong>{reportSummary.adminUsers.toLocaleString()}</strong>
+                  </div>
+                </div>
+
+                <div className="report-summary-card">
+                  <div className="report-card-heading">
+                    <span>Swaps Summary</span>
+                    <span>⇄</span>
+                  </div>
+
+                  <div className="report-metric">
+                    <span>Pending In-Queue:</span>
+                    <strong>{reportSummary.pendingSwaps}</strong>
+                  </div>
+
+                  <div className="report-metric">
+                    <span>Accepted & Ongoing:</span>
+                    <strong>{reportSummary.acceptedSwaps}</strong>
+                  </div>
+
+                  <div className="report-metric">
+                    <span>Successfully Completed:</span>
+                    <strong>{reportSummary.completedSwaps}</strong>
+                  </div>
+
+                  <div className="report-metric">
+                    <span>Rejected / Cancelled:</span>
+                    <strong>
+                      {reportSummary.rejectedSwaps +
+                        reportSummary.cancelledSwaps}
+                    </strong>
+                  </div>
+                </div>
+
+                <div className="report-summary-card">
+                  <div className="report-card-heading">
+                    <span>Ratings & Feedback</span>
+                    <span>☆</span>
+                  </div>
+
+                  <div className="report-metric">
+                    <span>Total Reviews:</span>
+                    <strong>{reportSummary.totalRatings}</strong>
+                  </div>
+
+                  <div className="report-metric">
+                    <span>Average Swap Rating:</span>
+                    <strong className="blue-value">
+                      {reportSummary.averageRating} / 5.0
+                    </strong>
+                  </div>
+
+                  <div className="report-metric">
+                    <span>5-Star Trades:</span>
+                    <strong>
+                      {reportSummary.totalRatings > 0
+                        ? `${Math.round(
+                            (reportRatings.filter(
+                              (item) => Number(item.rating) === 5,
+                            ).length /
+                              reportSummary.totalRatings) *
+                              100,
+                          )}%`
+                        : "0%"}
+                    </strong>
+                  </div>
+
+                  <div className="report-metric">
+                    <span>Flagged Reviews:</span>
+                    <strong className="red-value">0</strong>
+                  </div>
+                </div>
+
+                <div className="report-summary-card">
+                  <div className="report-card-heading">
+                    <span>Activity & Moderation</span>
+                    <span>⌁</span>
+                  </div>
+
+                  <div className="report-metric">
+                    <span>Total Activity Logs:</span>
+                    <strong>
+                      {reportSummary.totalActivityLogs.toLocaleString()}
+                    </strong>
+                  </div>
+
+                  <div className="report-metric">
+                    <span>Pending Skills:</span>
+                    <strong className="red-value">
+                      {reportSummary.pendingSkillModerations}
+                    </strong>
+                  </div>
+
+                  <div className="report-metric">
+                    <span>Turnaround SLA:</span>
+                    <strong>24 mins</strong>
+                  </div>
+
+                  <div className="report-metric">
+                    <span>System Health:</span>
+                    <strong className="blue-value">99.8% Uptime</strong>
+                  </div>
+                </div>
+              </div>
+
+              {/* DOWNLOAD CARDS */}
+              <div className="report-download-grid">
+                <button
+                  type="button"
+                  className="report-download-card"
+                  onClick={handleDownloadUsersReport}
+                >
+                  <span className="report-download-icon">▣</span>
+
+                  <span className="report-download-content">
+                    <strong>Users Report</strong>
+                    <small>
+                      CSV export • {users.length.toLocaleString()} rows
+                    </small>
+                  </span>
+
+                  <span className="report-download-arrow">↓</span>
+                </button>
+
+                <button
+                  type="button"
+                  className="report-download-card"
+                  onClick={handleDownloadSwapsReport}
+                >
+                  <span className="report-download-icon blue">⇄</span>
+
+                  <span className="report-download-content">
+                    <strong>Swaps Report</strong>
+                    <small>
+                      CSV export • {swaps.length.toLocaleString()} records
+                    </small>
+                  </span>
+
+                  <span className="report-download-arrow">↓</span>
+                </button>
+
+                <button
+                  type="button"
+                  className="report-download-card"
+                  onClick={handleDownloadRatingsReport}
+                >
+                  <span className="report-download-icon purple">☆</span>
+
+                  <span className="report-download-content">
+                    <strong>Ratings & Feedback</strong>
+                    <small>CSV export • {reportRatings.length} reviews</small>
+                  </span>
+
+                  <span className="report-download-arrow">↓</span>
+                </button>
+
+                <button
+                  type="button"
+                  className="report-download-card"
+                  onClick={handleDownloadActivityReport}
+                >
+                  <span className="report-download-icon">▤</span>
+
+                  <span className="report-download-content">
+                    <strong>Activity Report</strong>
+                    <small>CSV export • Last 30 days</small>
+                  </span>
+
+                  <span className="report-download-arrow">↓</span>
+                </button>
+              </div>
+            </>
+          )}
+        </section>
+
+        {/* ================= FOOTER ================= */}
+        <footer className="admin-footer">
+          <span>
+            <i></i>
+            SkillSwap Ops Core v2.4 • Admin Portal
+          </span>
+
+          <span>© 2024 SkillSwap Inc. All rights reserved.</span>
+        </footer>
+      </main>
     </div>
   );
 }
