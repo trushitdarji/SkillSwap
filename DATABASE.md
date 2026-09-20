@@ -38,7 +38,7 @@ Authentication is handled by **Supabase Auth**, while application-specific user 
          user_skills   swap_requests    notifications
               │              │
               ▼              │
-           skills             │
+           skills            │
                              ▼
                           ratings
 
