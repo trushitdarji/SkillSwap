@@ -640,6 +640,17 @@ function AdminDashboard() {
     setCurrentUserPage(1);
   }, [userSearch, roleFilter, statusFilter]);
 
+  const handleLogout = async () => {
+    const { error } = await supabase.auth.signOut();
+
+    if (error) {
+      console.error("Logout error:", error);
+      return;
+    }
+
+    window.location.href = "/login";
+  };
+
   return (
     <div className="admin-page">
       {/* ================= NAVBAR ================= */}
@@ -657,25 +668,89 @@ function AdminDashboard() {
         </div>
 
         <nav className="admin-nav">
-          <button className="admin-nav-item active">Overview</button>
+          <button
+            type="button"
+            className="admin-nav-item active"
+            onClick={() =>
+              document.getElementById("admin-overview")?.scrollIntoView({
+                behavior: "smooth",
+                block: "start",
+              })
+            }
+          >
+            Overview
+          </button>
 
-          <button className="admin-nav-item">Users</button>
+          <button
+            type="button"
+            className="admin-nav-item"
+            onClick={() =>
+              document.getElementById("admin-users")?.scrollIntoView({
+                behavior: "smooth",
+                block: "start",
+              })
+            }
+          >
+            Users
+          </button>
 
-          <button className="admin-nav-item">
+          <button
+            type="button"
+            className="admin-nav-item"
+            onClick={() =>
+              document
+                .getElementById("admin-skill-moderation")
+                ?.scrollIntoView({
+                  behavior: "smooth",
+                  block: "start",
+                })
+            }
+          >
             Skill
             <br />
             Moderation
           </button>
 
-          <button className="admin-nav-item">
+          <button
+            type="button"
+            className="admin-nav-item"
+            onClick={() =>
+              document.getElementById("admin-swap-monitoring")?.scrollIntoView({
+                behavior: "smooth",
+                block: "start",
+              })
+            }
+          >
             Swap
             <br />
             Monitoring
           </button>
 
-          <button className="admin-nav-item">Announcements</button>
+          <button
+            type="button"
+            className="admin-nav-item"
+            onClick={() =>
+              document.getElementById("admin-announcements")?.scrollIntoView({
+                behavior: "smooth",
+                block: "start",
+              })
+            }
+          >
+            Announcements
+          </button>
 
-          <button className="admin-nav-item">Reports</button>
+          <button
+            type="button"
+            className="admin-nav-item"
+            onClick={() =>
+              document.getElementById("admin-reports")?.scrollIntoView({
+                behavior: "smooth",
+                block: "start",
+              })
+            }
+          >
+            Reports
+          </button>
         </nav>
 
         <div className="admin-navbar-right">
@@ -689,7 +764,12 @@ function AdminDashboard() {
             {(currentAdmin?.full_name || "A").charAt(0).toUpperCase()}
           </div>
 
-          <button className="admin-logout-icon" type="button">
+          <button
+            className="admin-logout-icon"
+            type="button"
+            onClick={handleLogout}
+            title="Logout"
+          >
             ↪
           </button>
         </div>
@@ -748,7 +828,7 @@ function AdminDashboard() {
         {loading ? (
           <div className="admin-loading-card">Loading stats...</div>
         ) : (
-          <div className="admin-stats-grid">
+          <div id="admin-overview" className="admin-stats-grid">
             <div className="admin-stat-card">
               <div className="admin-stat-top">
                 <div>
@@ -828,7 +908,7 @@ function AdminDashboard() {
         )}
 
         {/* ================= USER MANAGEMENT ================= */}
-        <section className="admin-section">
+        <section id="admin-users" className="admin-section">
           <div className="admin-section-heading">
             <div>
               <div className="admin-section-title-row">
@@ -1060,7 +1140,10 @@ function AdminDashboard() {
           </div>
         </section>
         {/* ================= SKILL MODERATION ================= */}
-        <section className="admin-section moderation-section">
+        <section
+          id="admin-skill-moderation"
+          className="admin-section moderation-section"
+        >
           <div className="moderation-header">
             <div>
               <div className="moderation-title-row">
@@ -1167,7 +1250,10 @@ function AdminDashboard() {
         </section>
 
         {/* ================= SWAP MONITORING ================= */}
-        <section className="admin-section swap-monitoring-section">
+        <section
+          id="admin-swap-monitoring"
+          className="admin-section swap-monitoring-section"
+        >
           <div className="swap-monitoring-header">
             <div>
               <h2>Swap Monitoring</h2>
@@ -1400,7 +1486,7 @@ function AdminDashboard() {
           )}
         </section>
         {/* ================= PLATFORM ANNOUNCEMENT ================= */}
-        <section className="announcement-section">
+        <section id="admin-announcements" className="announcement-section">
           <div className="announcement-heading">
             <h2>Platform Announcement</h2>
             <p>
@@ -1527,7 +1613,7 @@ function AdminDashboard() {
         </section>
 
         {/* ================= REPORTS ================= */}
-        <section className="reports-section">
+        <section id="admin-reports" className="reports-section">
           <div className="reports-heading">
             <h2>Reports & Analytics</h2>
 

@@ -504,6 +504,18 @@ function Profile() {
 
     checkSession();
   }, [navigate, userId, isOwnProfile]);
+
+  const handleLogout = async () => {
+    const { error } = await supabase.auth.signOut();
+
+    if (error) {
+      console.error("Logout error:", error);
+      return;
+    }
+
+    window.location.href = "/login";
+  };
+
   return (
     <div className="profile-page">
       <nav className="profile-navbar">
@@ -542,6 +554,15 @@ function Profile() {
                 .toUpperCase()
             )}
           </span>
+
+          <button
+            type="button"
+            className="profile-logout-button"
+            onClick={handleLogout}
+            title="Logout"
+          >
+            ↪
+          </button>
         </div>
       </nav>
 
